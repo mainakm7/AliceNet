@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 
-def load_data():
+def load_raw_data():
     #defining data directory path
     data_path = r"data\raw"
     curr_path = os.getcwd()
@@ -37,3 +37,16 @@ def load_data():
     sf_events_upd = sf_events_df[common_cols]
     
     return sf_exp_upd, sf_events_upd
+
+def load_mi_data():
+    #defining data directory path
+    data_path = r"data\processed"
+    curr_path = os.getcwd()
+    parent_dir = curr_path
+    data_path_whole = os.path.join(parent_dir,data_path)
+    
+    mi_data_path = os.path.join(data_path_whole,"mutualinfo_reg_one_to_one_MI_all_melted.csv")
+    
+    mi_data = pd.read_csv(mi_data_path)
+    
+    return mi_data
