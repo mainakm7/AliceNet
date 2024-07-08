@@ -9,4 +9,6 @@ def main(calculate_MI: str = False, xgboost_event_index: int = 1, xgboost_specif
     
     fit_param = xgboostnet(xgboost_event_index, xgboost_specific_gene)
     
-    
+
+if __name__ == "__main__":
+    main()
