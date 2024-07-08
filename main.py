@@ -1,6 +1,4 @@
-import numpy as np
-import pandas as pd
-import os
-from load_data import load_data
+from .mutual_info_regression.mi_regression_all import mi_regression_all
 
-sf_exp_df, sf_events_df = load_data()
+
+mi_reg_df = mi_regression_all()

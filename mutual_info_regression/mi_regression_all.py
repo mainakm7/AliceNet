@@ -54,5 +54,3 @@ def mi_regression_all():
 
     return mi_reg_df
 
-# Call the function to perform mutual information regression and save results
-mi_regression_all()
