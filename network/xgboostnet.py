@@ -22,7 +22,7 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tup
     """
     
     # Perform data preparation
-    train_X, train_y, test_X, test_y = data_preparation(event_index, specific_gene)
+    train_X, train_y, test_X, test_y = data_preparation(event_index, specific_gene, test_size=0.3)
 
     def objective_custom(trial):
         """
