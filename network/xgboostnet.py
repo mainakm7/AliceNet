@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import PCA
 from ..utils.data_matrices import sf_events_upd, sf_exp_upd
-from ..utils.load_data import load_mi_data
+from ..utils.load_data import load_melted_mi_data
 from ..utils.data_dir_path import data_dir_path
 from typing import Optional, Tuple
 import json
@@ -24,7 +24,7 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tup
         tuple: Best hyperparameters found by Optuna, fit_rmse.
     """
     # Load mutual information data
-    mi_df = load_mi_data()
+    mi_df = load_melted_mi_data()
 
     adj_df_mi = mi_df.groupby("Splicing events").apply(lambda x: dict(zip(x["Splicing factors"], x["MI-value"]))).reset_index(name="adj_list")
     adj_df_mi.set_index("Splicing events", inplace=True)
@@ -232,7 +232,7 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tup
         "fit_RMSE": final_rmse_custom
     }
 
-    data_path = data_dir_path(subdir="processed")
+    data_path = data_dir_path(subdir="network")
     file_name = f"{sf_events_df_individual.name}.json"
     whole_save_path = os.path.join(data_path, file_name)
     with open(whole_save_path, "w") as f:

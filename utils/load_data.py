@@ -42,21 +42,42 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     return sf_exp_upd, sf_events_upd
 
-def load_mi_data() -> pd.DataFrame:
+def load_melted_mi_data() -> pd.DataFrame:
     """
-    Load mutual information data.
+    Load melted mutual information data.
     
-    This function defines the data directory path and loads mutual information
+    This function defines the data directory path and loads melted mutual information
     data from a CSV file.
 
     Returns:
-        DataFrame: The loaded mutual information dataframe.
+        DataFrame: The loaded melted mutual information dataframe.
     """
     # Defining data directory path
-    data_path_whole = data_dir_path(subdir="processed")
+    data_path_whole = data_dir_path(subdir="MI")
     
     mi_data_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all_melted.csv")
     
     mi_data = pd.read_csv(mi_data_path)
+    
+    return mi_data
+
+def load_raw_mi_data() -> pd.DataFrame:
+    """
+    Load mutual information data.
+    
+    This function defines the data directory path and loads processed mutual information
+    data from a CSV file. It sets the index and removes unnecessary columns.
+
+    Returns:
+        DataFrame: The loaded processed mutual information dataframe.
+    """
+    # Defining data directory path
+    data_path_whole = data_dir_path(subdir="MI")
+    
+    mi_data_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all.csv")
+    
+    mi_data = pd.read_csv(mi_data_path)
+    mi_data.set_index(mi_data.iloc[:, 0], inplace=True)
+    mi_data = mi_data.iloc[:, 1:]
     
     return mi_data

@@ -7,11 +7,6 @@ import os
 from ..utils.data_matrices import events_mat, genes_mat, sf_events_upd, sf_exp_upd
 from ..utils.data_dir_path import data_dir_path
 
-# Define the paths
-
-data_path_whole = data_dir_path()
-timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-save_path = os.path.join(data_path_whole, f"mi_reg_all_{timestamp}.csv")
 
 def mi_regression_all():
     cols = sf_events_upd.index
@@ -47,6 +42,12 @@ def mi_regression_all():
 
     # Convert to DataFrame
     mi_reg_df = pd.DataFrame(mi_reg_parallel, index=ind, columns=cols)
+    
+    # Define the paths
+
+    data_path_whole = data_dir_path()
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    save_path = os.path.join(data_path_whole, f"mi_reg_all_{timestamp}.csv")
 
     # Save to CSV
     mi_reg_df.to_csv(save_path)
