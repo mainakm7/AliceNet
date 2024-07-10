@@ -1,1 +1,1 @@
-# AliceNet (In progress)
+# AliceNet (In development)
