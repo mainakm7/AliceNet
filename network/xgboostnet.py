@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import optuna
 from .custom_model import custom_model
+from .hyperparameter_tuning import hyperparameter_tuning
 from sklearn.metrics import mean_squared_error
 from ..utils.data_dir_path import data_dir_path
 from .data_preparation import data_preparation
@@ -24,35 +25,7 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tup
     # Perform data preparation
     train_X, train_y, test_X, test_y = data_preparation(event_index, specific_gene, test_size=0.3)
 
-    def objective_custom(trial):
-        """
-        Objective function for Optuna to optimize hyperparameters.
-
-        Args:
-            trial (optuna.trial.Trial): Optuna trial object.
-
-        Returns:
-            float: Root Mean Squared Error (RMSE) of the model.
-        """
-        params = {
-            'n_estimators': trial.suggest_int('n_estimators', 50, 200),
-            'max_depth': trial.suggest_int('max_depth', 3, 9),
-            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
-            'min_child_weight': trial.suggest_float('min_child_weight', 1e-3, 1e1, log=True),
-            'gamma': trial.suggest_float('gamma', 1e-3, 1e1, log=True),
-            'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
-            'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 1e1, log=True),
-            'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 1e1, log=True)
-        }
-        
-        model = custom_model()
-        model.pca_fit(train_X, min(10, train_X.shape[1]))  # Assuming train_X is the correct dataframe
-        model.fit(train_X.values, train_y.values, params=params, early_stopping_rounds=10, random_state=42, apply_pca=True, verbose=False, n_splits=5)
-        
-        preds = model.predict(test_X.values)
-        rmse = mean_squared_error(test_y.values, preds) ** 0.5
-        return rmse
+    objective_custom = hyperparameter_tuning(train_X, train_y, test_X, test_y)
 
     # Perform hyperparameter optimization
     study_custom = optuna.create_study(direction='minimize')
