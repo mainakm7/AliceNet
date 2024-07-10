@@ -1,6 +1,12 @@
 from .mutual_info_regression.mi_regression_all import mi_regression_all
 from .network.xgboostnet import xgboostnet
 from typing import Optional
+from fastapi import FastAPI
+
+
+
+app = FastAPI()
+
 
 def main(calculate_MI: str = False, view_or_calc_network: str = True, \
     xgboost_event_index: int = 1, xgboost_specific_gene: Optional[str] = None, *args, **kwargs):
