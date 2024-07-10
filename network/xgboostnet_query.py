@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from ..data_matrices import sf_events_upd
-from ..data_path import data_path
+from ..data_dir_path import data_dir_path
 from typing import Optional, Tuple
 import json
 import os
@@ -37,7 +37,7 @@ def xgboostnet_query(event_index: int = 1, specific_gene: Optional[str] = None) 
         raise FileNotFoundError(f"File {file_name} not found")
 
     
-    data_path = data_path()
+    data_path = data_dir_path(subdir="processed")
     file_name = f"{sf_events_df_individual.name}.json"
     whole_load_path = os.path.join(data_path, file_name)
     with open(whole_load_path, "r") as f:
