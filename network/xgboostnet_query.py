@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from ..data_matrices import sf_events_upd
+from ..data_path import data_path
 from typing import Optional, Tuple
 import json
 import os
@@ -35,7 +36,11 @@ def xgboostnet_query(event_index: int = 1, specific_gene: Optional[str] = None) 
     if not os.path.isfile(file_name):
         raise FileNotFoundError(f"File {file_name} not found")
 
-    with open(file_name, "r") as f:
+    
+    data_path = data_path()
+    file_name = f"{sf_events_df_individual.name}.json"
+    whole_load_path = os.path.join(data_path, file_name)
+    with open(whole_load_path, "r") as f:
         fit = json.load(f)
 
     best_params_custom = fit["model_best_fit_param"]

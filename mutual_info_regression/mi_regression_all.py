@@ -5,12 +5,11 @@ from joblib import delayed, Parallel
 from datetime import datetime
 import os
 from ..data_matrices import events_mat, genes_mat, sf_events_upd, sf_exp_upd
+from ..data_save_path import data_save_path
 
 # Define the paths
-data_path = r"data\processed"
-curr_path = os.getcwd()
-parent_dir = os.path.abspath(os.path.join(curr_path, os.pardir))
-data_path_whole = os.path.join(parent_dir, data_path)
+
+data_path_whole = data_save_path()
 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 save_path = os.path.join(data_path_whole, f"mi_reg_all_{timestamp}.csv")
 

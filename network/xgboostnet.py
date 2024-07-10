@@ -7,6 +7,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import PCA
 from ..data_matrices import sf_events_upd, sf_exp_upd
 from ..load_data import load_mi_data
+from ..data_path import data_path
 from typing import Optional, Tuple
 import json
 import os
@@ -231,8 +232,10 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tup
         "fit_RMSE": final_rmse_custom
     }
 
+    data_path = data_path()
     file_name = f"{sf_events_df_individual.name}.json"
-    with open(file_name, "w") as f:
+    whole_save_path = os.path.join(data_path, file_name)
+    with open(whole_save_path, "w") as f:
         json.dump(fit, f)
 
     print("\n Best Custom XGBoostReg parameters:", best_params_custom)

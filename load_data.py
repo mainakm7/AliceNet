@@ -1,15 +1,13 @@
 import numpy as np
 import pandas as pd
 import os
+from .data_dir_path import data_dir_path
 
 
 def load_raw_data():
     #defining data directory path
-    data_path = r"data\raw"
-    curr_path = os.getcwd()
-    parent_dir = curr_path
-    data_path_whole = os.path.join(parent_dir,data_path)
-
+    
+    data_path_whole = data_dir_path(subdir="raw")
     #load splicing event and sf expression data
 
     sf_events_path = os.path.join(data_path_whole,"correlation_gene_exp_splicing_events_cmi32_su2ce153_withNA10percent_unscaled.csv")
