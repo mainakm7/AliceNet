@@ -7,10 +7,11 @@ from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import PCA
 from ..data_matrices import sf_events_upd, sf_exp_upd
 from ..load_data import load_mi_data
-from typing import Optional
+from typing import Optional, Tuple
 import json
+import os
 
-def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None):
+def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None) -> Tuple[dict, float]:
     """
     Train an XGBoost model with PCA preprocessing and hyperparameter optimization using Optuna.
 
@@ -19,24 +20,31 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None):
         specific_gene (Optional[str]): Gene to filter the splicing events. If None, uses all genes.
 
     Returns:
-        dict: Best hyperparameters found by Optuna.
+        tuple: Best hyperparameters found by Optuna, fit_rmse.
     """
+    # Load mutual information data
     mi_df = load_mi_data()
 
     adj_df_mi = mi_df.groupby("Splicing events").apply(lambda x: dict(zip(x["Splicing factors"], x["MI-value"]))).reset_index(name="adj_list")
     adj_df_mi.set_index("Splicing events", inplace=True)
 
-    sf_events_df = sf_events_upd
-    sf_exp_df = sf_exp_upd
+    sf_events_df = sf_events_upd.copy()
+    sf_exp_df = sf_exp_upd.copy()
     sf_exp_df_t = sf_exp_df.T
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
 
     na_list = [series.dropna().shape[0] for _, series in sf_events_df.iterrows()]
-    
+
     if specific_gene:
         sf_events_df_gene = sf_events_df[sf_events_df["gene"] == specific_gene]
+        if sf_events_df_gene.empty:
+            raise ValueError(f"No events found for the gene: {specific_gene}")
+        if event_index >= len(sf_events_df_gene):
+            raise IndexError(f"Event index {event_index} is out of bounds for gene {specific_gene}")
         sf_events_df_individual = sf_events_df_gene.iloc[event_index, :-1]
     else:
+        if event_index >= len(sf_events_df):
+            raise IndexError(f"Event index {event_index} is out of bounds")
         sf_events_df_individual = sf_events_df.iloc[event_index, :-1]
 
     def individual_dataset(X_df, y_df):
@@ -223,10 +231,11 @@ def xgboostnet(event_index: int = 1, specific_gene: Optional[str] = None):
         "fit_RMSE": final_rmse_custom
     }
 
-    with open(f"{sf_events_df_individual.name}.json", "w") as f:
+    file_name = f"{sf_events_df_individual.name}.json"
+    with open(file_name, "w") as f:
         json.dump(fit, f)
 
-    print("\nBest Custom XGBoostReg parameters:", best_params_custom)
-    print("Final RMSE for custom model: ", final_rmse_custom)
+    print("\n Best Custom XGBoostReg parameters:", best_params_custom)
+    print("\n Final RMSE for custom model: ", final_rmse_custom)
     
-    return best_params_custom
+    return best_params_custom, final_rmse_custom
