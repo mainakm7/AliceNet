@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from ..data_matrices import sf_events_upd
-from ..data_dir_path import data_dir_path
+from ..utils.data_matrices import sf_events_upd
+from ..utils.data_dir_path import data_dir_path
 from typing import Optional, Tuple
 import json
 import os

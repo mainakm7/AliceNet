@@ -5,9 +5,9 @@ from xgboost import XGBRegressor
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import PCA
-from ..data_matrices import sf_events_upd, sf_exp_upd
-from ..load_data import load_mi_data
-from ..data_dir_path import data_dir_path
+from ..utils.data_matrices import sf_events_upd, sf_exp_upd
+from ..utils.load_data import load_mi_data
+from ..utils.data_dir_path import data_dir_path
 from typing import Optional, Tuple
 import json
 import os
