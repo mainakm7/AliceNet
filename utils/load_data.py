@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 from .data_dir_path import data_dir_path
 
 def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -42,12 +42,15 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     return sf_exp_upd, sf_events_upd
 
-def load_melted_mi_data() -> pd.DataFrame:
+def load_melted_mi_data(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
     """
     Load melted mutual information data.
     
     This function defines the data directory path and loads melted mutual information
     data from a CSV file.
+
+    Args:
+        filename (Optional[str]): The filename of the melted MI data CSV. Defaults to "mutualinfo_reg_one_to_one_MI_all_melted.csv".
 
     Returns:
         DataFrame: The loaded melted mutual information dataframe.
@@ -55,18 +58,21 @@ def load_melted_mi_data() -> pd.DataFrame:
     # Defining data directory path
     data_path_whole = data_dir_path(subdir="MI")
     
-    mi_data_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all_melted.csv")
+    mi_data_path = os.path.join(data_path_whole, filename)
     
     mi_data = pd.read_csv(mi_data_path)
     
     return mi_data
 
-def load_raw_mi_data() -> pd.DataFrame:
+def load_raw_mi_data(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_all.csv") -> pd.DataFrame:
     """
-    Load mutual information data.
+    Load raw mutual information data.
     
     This function defines the data directory path and loads processed mutual information
     data from a CSV file. It sets the index and removes unnecessary columns.
+
+    Args:
+        filename (Optional[str]): The filename of the raw MI data CSV. Defaults to "mutualinfo_reg_one_to_one_MI_all.csv".
 
     Returns:
         DataFrame: The loaded processed mutual information dataframe.
@@ -74,7 +80,7 @@ def load_raw_mi_data() -> pd.DataFrame:
     # Defining data directory path
     data_path_whole = data_dir_path(subdir="MI")
     
-    mi_data_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all.csv")
+    mi_data_path = os.path.join(data_path_whole, filename)
     
     mi_data = pd.read_csv(mi_data_path)
     mi_data.set_index(mi_data.iloc[:, 0], inplace=True)
