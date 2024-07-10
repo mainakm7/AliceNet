@@ -1,6 +1,6 @@
 import os
 
-def data_dir_path(subdir="processed"):
+def data_dir_path(subdir: str = "processed") -> str:
     """
     Constructs the absolute path to a specified subdirectory within 'data'.
     
