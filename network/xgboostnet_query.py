@@ -41,4 +41,7 @@ def xgboostnet_query(event_index: int = 1, specific_gene: Optional[str] = None) 
     best_params_custom = fit["model_best_fit_param"]
     fit_rmse = fit["fit_RMSE"]
 
+    print("\n Best Custom XGBoostReg parameters:", best_params_custom)
+    print("\n Final RMSE for custom model: ", fit_rmse)
+    
     return best_params_custom, fit_rmse
