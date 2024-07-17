@@ -11,10 +11,10 @@ router = APIRouter(prefix="/mi", tags=["MI_regression"])
 async def mi_query(gene: str = Path("AR"), event: Optional[str] = Query(None)) -> Union[List[str], float]:
     if not event:
         event_list = await asyncio.to_thread(mi_regression_query_specific_gene, gene)
-        return {"event_list": event_list}
+        return event_list
     else:
         mi = await asyncio.to_thread(mi_regression_query_specific_event, gene, event)
-        return {"mi": mi}
+        return mi
     
     
 
