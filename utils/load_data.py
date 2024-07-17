@@ -42,7 +42,7 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     return sf_exp_upd, sf_events_upd
 
-def load_melted_mi_data(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
+def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
     """
     Load melted mutual information data.
     
@@ -64,7 +64,7 @@ def load_melted_mi_data(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_
     
     return mi_data
 
-def load_raw_mi_data(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_all.csv") -> pd.DataFrame:
+def load_raw_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> pd.DataFrame:
     """
     Load raw mutual information data.
     
