@@ -1,8 +1,18 @@
+import os
 import numpy as np
 import pandas as pd
-import os
 from typing import Tuple, Optional
 from .data_dir_path import data_dir_path
+
+# Global variables to store the data
+sf_exp_upd: Optional[pd.DataFrame] = None
+sf_events_upd: Optional[pd.DataFrame] = None
+
+def data_files_exist() -> bool:
+    data_path_whole = data_dir_path(subdir="raw")
+    sf_events_path = os.path.join(data_path_whole, "correlation_gene_exp_splicing_events_cmi32_su2ce153_withNA10percent_unscaled.csv")
+    sf_exp_path = os.path.join(data_path_whole, "normalized_counts_for_cmi32_su2ce153_sf_genes_upd.csv")
+    return os.path.exists(sf_events_path) and os.path.exists(sf_exp_path)
 
 def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -17,6 +27,11 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
         tuple: A tuple containing the processed SF expression dataframe and 
                the processed splicing events dataframe.
     """
+    global sf_exp_upd, sf_events_upd
+    
+    if sf_exp_upd is not None and sf_events_upd is not None:
+        return sf_exp_upd, sf_events_upd
+
     # Defining data directory path
     data_path_whole = data_dir_path(subdir="raw")
     
@@ -41,6 +56,14 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     sf_events_upd = sf_events_df[common_cols]
     
     return sf_exp_upd, sf_events_upd
+
+async def initialize_data():
+    if data_files_exist():
+        global sf_exp_upd, sf_events_upd
+        sf_exp_upd, sf_events_upd = load_raw_data()
+    else:
+        # You can raise an exception to handle the missing files
+        raise FileNotFoundError("Data files do not exist. Please upload the data files first.")
 
 def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
     """
