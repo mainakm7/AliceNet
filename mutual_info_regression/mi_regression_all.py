@@ -4,7 +4,7 @@ import pandas as pd
 from joblib import delayed, Parallel
 from datetime import datetime
 import os
-from ..utils.data_matrices import sf_events_upd, sf_exp_upd
+from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from ..utils.data_dir_path import data_dir_path
 
 

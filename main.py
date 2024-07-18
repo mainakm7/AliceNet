@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    
     Database.initialize()
     yield
     Database.close()
