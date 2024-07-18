@@ -8,8 +8,9 @@ from .data_dir_path import data_dir_path
 sf_exp_upd: Optional[pd.DataFrame] = None
 sf_events_upd: Optional[pd.DataFrame] = None
 
-events_mat = sf_events_upd.values
-genes_mat = sf_exp_upd.values
+mi_raw_data: Optional[pd.DataFrame] = None
+mi_melted_data: Optional[pd.DataFrame] = None
+
 
 def data_files_exist(sf_events_filename: str, sf_exp_filename: str, data_path_whole: str) -> bool:
     """
@@ -86,32 +87,7 @@ async def initialize_data(sf_events_filename: str = "correlation_gene_exp_splici
         # You can raise an exception to handle the missing files
         raise FileNotFoundError("Data files do not exist. Please upload the data files first.")
     
-    
-    
 
-    
-
-def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
-    """
-    Load melted mutual information data.
-    
-    This function defines the data directory path and loads melted mutual information
-    data from a CSV file.
-
-    Args:
-        filename (Optional[str]): The filename of the melted MI data CSV. Defaults to "mutualinfo_reg_one_to_one_MI_all_melted.csv".
-
-    Returns:
-        DataFrame: The loaded melted mutual information dataframe.
-    """
-    # Defining data directory path
-    data_path_whole = data_dir_path(subdir="MI")
-    
-    mi_data_path = os.path.join(data_path_whole, filename)
-    
-    mi_data = pd.read_csv(mi_data_path)
-    
-    return mi_data
 
 def load_raw_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> pd.DataFrame:
     """
@@ -126,6 +102,8 @@ def load_raw_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> 
     Returns:
         DataFrame: The loaded processed mutual information dataframe.
     """
+    
+    global mi_raw_data
     # Defining data directory path
     data_path_whole = data_dir_path(subdir="MI")
     
@@ -135,4 +113,36 @@ def load_raw_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> 
     mi_data.set_index(mi_data.iloc[:, 0], inplace=True)
     mi_data = mi_data.iloc[:, 1:]
     
+    mi_raw_data = mi_data
+    
     return mi_data
+
+
+  
+def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
+    """
+    Load melted mutual information data.
+    
+    This function defines the data directory path and loads melted mutual information
+    data from a CSV file.
+
+    Args:
+        filename (Optional[str]): The filename of the melted MI data CSV. Defaults to "mutualinfo_reg_one_to_one_MI_all_melted.csv".
+
+    Returns:
+        DataFrame: The loaded melted mutual information dataframe.
+    """
+    global mi_melted_data
+    
+    # Defining data directory path
+    data_path_whole = data_dir_path(subdir="MI")
+    
+    mi_data_path = os.path.join(data_path_whole, filename)
+    
+    mi_data = pd.read_csv(mi_data_path)
+    
+    mi_melted_data = mi_data
+    
+    return mi_data
+
+
