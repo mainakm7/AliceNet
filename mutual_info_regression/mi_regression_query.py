@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from typing import List, Optional
-from ..utils.load_data import load_melted_mi_data
+from ..utils.data_loader import load_melted_mi_data
 
 def current_melted_mi_file(filename: Optional[str] = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> str:
     """

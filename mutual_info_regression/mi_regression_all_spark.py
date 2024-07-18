@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.feature_selection import mutual_info_regression
 from datetime import datetime
 import os
-from ..utils.data_matrices import sf_events_upd, sf_exp_upd
+from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from ..utils.data_dir_path import data_dir_path
 
 def compute_mutual_info(gene_event_tuple):

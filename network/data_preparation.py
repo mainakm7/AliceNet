@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
-from ..utils.load_data import load_melted_mi_data
-from ..utils.data_matrices import sf_events_upd, sf_exp_upd
+from ..utils.data_loader import load_melted_mi_data
+from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from sklearn.model_selection import train_test_split
 
 def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, test_size: Optional[float] = 0.3) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:   
