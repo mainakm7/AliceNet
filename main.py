@@ -3,10 +3,17 @@ from .network.xgboostnet import xgboostnet
 from typing import Optional
 from fastapi import FastAPI, status
 from .api_routers import network, mi_reg, load_data
+from .database import Database
+from contextlib import asynccontextmanager
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Database.initialize()
+    yield
+    Database.close()
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(network)
 app.include_router(mi_reg)
