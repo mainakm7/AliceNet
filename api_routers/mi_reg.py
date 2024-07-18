@@ -7,8 +7,8 @@ import asyncio
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
 
 @router.get("/melted_mi_file")
-def get_melted_filename(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")):
-    filename = current_melted_mi_file(filename=file)
+async def get_melted_filename(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")):
+    filename = await asyncio.to_thread(current_melted_mi_file, file)
     return filename
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
