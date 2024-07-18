@@ -1,7 +1,4 @@
 from fastapi import APIRouter, status, Path, Query, Depends
-from ..mutual_info_regression.mi_regression_query import mi_regression_query_specific_gene, mi_regression_query_specific_event, current_melted_mi_file
-from typing import Optional, Union, List
-import asyncio
 from ..database import Database
 import requests
 import pandas as pd
@@ -44,7 +41,7 @@ async def mi_data_to_db(db: Database):
 
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
-async def mi_gene_events_query(gene: str, db: Database, event: str = Query(None)):
+async def mi_gene_events_query(db: Database, gene: str = Path("AR"), event: str = Query(None)):
     
     if not event:
         try:
