@@ -8,20 +8,33 @@ from .data_dir_path import data_dir_path
 sf_exp_upd: Optional[pd.DataFrame] = None
 sf_events_upd: Optional[pd.DataFrame] = None
 
-def data_files_exist() -> bool:
-    data_path_whole = data_dir_path(subdir="raw")
-    sf_events_path = os.path.join(data_path_whole, "correlation_gene_exp_splicing_events_cmi32_su2ce153_withNA10percent_unscaled.csv")
-    sf_exp_path = os.path.join(data_path_whole, "normalized_counts_for_cmi32_su2ce153_sf_genes_upd.csv")
+events_mat = sf_events_upd.values
+genes_mat = sf_exp_upd.values
+
+def data_files_exist(sf_events_filename: str, sf_exp_filename: str, data_path_whole: str) -> bool:
+    """
+    Check if the required data files exist in the specified directory path.
+
+    Args:
+        sf_events_filename (str): Filename of splicing events CSV file.
+        sf_exp_filename (str): Filename of SF expression CSV file.
+        data_path_whole (str): Full path to the directory containing data files.
+
+    Returns:
+        bool: True if both data files exist, False otherwise.
+    """
+    sf_events_path = os.path.join(data_path_whole, sf_events_filename)
+    sf_exp_path = os.path.join(data_path_whole, sf_exp_filename)
     return os.path.exists(sf_events_path) and os.path.exists(sf_exp_path)
 
-def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+def load_raw_data(sf_events_filename: str, sf_exp_filename: str, data_path_whole: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load raw splicing event and SF expression data.
-    
-    This function defines the data directory path, loads splicing event and 
-    SF expression data from CSV files, processes the dataframes by setting 
-    the appropriate index and removing the first column, and sorts the samples
-    for both dataframes to ensure they have common columns.
+
+    Args:
+        sf_events_filename (str): Filename of splicing events CSV file.
+        sf_exp_filename (str): Filename of SF expression CSV file.
+        data_path_whole (str): Full path to the directory containing data files.
 
     Returns:
         tuple: A tuple containing the processed SF expression dataframe and 
@@ -32,12 +45,9 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     if sf_exp_upd is not None and sf_events_upd is not None:
         return sf_exp_upd, sf_events_upd
 
-    # Defining data directory path
-    data_path_whole = data_dir_path(subdir="raw")
-    
     # Load splicing event and SF expression data
-    sf_events_path = os.path.join(data_path_whole, "correlation_gene_exp_splicing_events_cmi32_su2ce153_withNA10percent_unscaled.csv")
-    sf_exp_path = os.path.join(data_path_whole, "normalized_counts_for_cmi32_su2ce153_sf_genes_upd.csv")
+    sf_events_path = os.path.join(data_path_whole, sf_events_filename)
+    sf_exp_path = os.path.join(data_path_whole, sf_exp_filename)
 
     sf_events_df = pd.read_csv(sf_events_path)
     sf_exp_df = pd.read_csv(sf_exp_path)
@@ -57,13 +67,29 @@ def load_raw_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     
     return sf_exp_upd, sf_events_upd
 
-async def initialize_data():
-    if data_files_exist():
+async def initialize_data(sf_events_filename: str = "correlation_gene_exp_splicing_events_cmi32_su2ce153_withNA10percent_unscaled.csv",
+                          sf_exp_filename: str = "normalized_counts_for_cmi32_su2ce153_sf_genes_upd.csv",
+                          subdir: str = "raw"):
+    """
+    Initialize data loading.
+
+    Args:
+        sf_events_filename (str): Filename of splicing events CSV file.
+        sf_exp_filename (str): Filename of SF expression CSV file.
+        subdir (str): Subdirectory name where data files are located.
+    """
+    data_path_whole = data_dir_path(subdir=subdir)
+    if data_files_exist(sf_events_filename, sf_exp_filename, data_path_whole):
         global sf_exp_upd, sf_events_upd
-        sf_exp_upd, sf_events_upd = load_raw_data()
+        sf_exp_upd, sf_events_upd = load_raw_data(sf_events_filename, sf_exp_filename, data_path_whole)
     else:
         # You can raise an exception to handle the missing files
         raise FileNotFoundError("Data files do not exist. Please upload the data files first.")
+    
+    
+    
+
+    
 
 def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> pd.DataFrame:
     """
