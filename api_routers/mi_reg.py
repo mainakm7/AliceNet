@@ -3,6 +3,8 @@ from ..mutual_info_regression.mi_regression_query import mi_regression_query_spe
 from typing import Optional, Union, List
 import asyncio
 from ..database import Database
+import requests
+import pandas as pd
 
 
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
@@ -11,19 +13,52 @@ def get_db():
     db = Database.get_db()
     return db
 
-@router.get("/melted_mi_file")
-async def get_melted_filename(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")):
-    filename = await asyncio.to_thread(current_melted_mi_file, file)
-    return filename
+db = Depends(get_db)
+
+@router.post("/mi_data", status_code=status.HTTP_201_CREATED)
+async def mi_data_to_db(db: Database):
+    try:
+        # Fetch melted MI data from another endpoint
+        response = requests.get("http://localhost:8000/load/melted_mi")
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Process melted MI data
+        melted_mi_data = pd.DataFrame(response.json().get("melted_mi_data"))
+        
+        # Example: Inserting each row into MongoDB
+        for index, row in melted_mi_data.iterrows():
+            db['melted_mi_data'].insert_one({
+                "spliced_genes": row["spliced_genes"],
+                "events": row["Splicing events"],
+                "mi": row["MI-value"]
+            })
+        
+        return {"message": "Data inserted successfully"}
+    
+    except requests.RequestException as e:
+        return {"error": f"Error fetching data from external endpoint: {e}"}
+    
+    except Exception as e:
+        return {"error": f"An error occurred: {e}"}
+
+
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
-async def mi_query(gene: str = Path("AR"), event: Optional[str] = Query(None)) -> Union[List[str], float]:
+async def mi_gene_events_query(gene: str, db: Database, event: str = Query(None)):
+    
     if not event:
-        event_list = await asyncio.to_thread(mi_regression_query_specific_gene, gene)
-        return event_list
+        try:
+            # Retrieve all events for the given gene
+            all_events = list(db['melted_mi_data'].find({"spliced_genes": gene}))
+            return all_events
+        
+        except Exception as e:
+            return {"error": f"An error occurred: {e}"}
+    
     else:
-        mi = await asyncio.to_thread(mi_regression_query_specific_event, gene, event)
-        return mi
-
-
-
+        try:
+            mi = db['melted_mi_data'].find({"spliced_genes": gene, "events":event})
+            return mi
+        
+        except Exception as e:
+            return {"error": f"An error occurred: {e}"}
