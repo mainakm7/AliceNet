@@ -5,7 +5,7 @@ from ..utils.data_loader import load_melted_mi_data
 from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from sklearn.model_selection import train_test_split
 
-def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, test_size: Optional[float] = 0.3) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:   
+def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, test_size: Optional[float] = 0.3, *args, **kwargs) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:   
     """
     Prepare machine learning data for predicting splicing events associated with splicing factors.
 

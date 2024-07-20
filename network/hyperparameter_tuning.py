@@ -41,15 +41,15 @@ def hyperparameter_tuning(train_X: pd.DataFrame, train_y: pd.DataFrame, test_X: 
             float: Root Mean Squared Error (RMSE) of the model.
         """
         # Example of using kwargs to modify parameters
-        n_estimators = kwargs.get('n_estimators', trial.suggest_int('n_estimators', 50, 200))
-        max_depth = kwargs.get('max_depth', trial.suggest_int('max_depth', 3, 9))
-        learning_rate = kwargs.get('learning_rate', trial.suggest_float('learning_rate', 0.01, 0.3, log=True))
-        min_child_weight = kwargs.get('min_child_weight', trial.suggest_float('min_child_weight', 1e-3, 1e1, log=True))
-        gamma = kwargs.get('gamma', trial.suggest_float('gamma', 1e-3, 1e1, log=True))
-        subsample = kwargs.get('subsample', trial.suggest_float('subsample', 0.5, 1.0))
-        colsample_bytree = kwargs.get('colsample_bytree', trial.suggest_float('colsample_bytree', 0.5, 1.0))
-        reg_alpha = kwargs.get('reg_alpha', trial.suggest_float('reg_alpha', 1e-3, 1e1, log=True))
-        reg_lambda = kwargs.get('reg_lambda', trial.suggest_float('reg_lambda', 1e-3, 1e1, log=True))
+        n_estimators = trial.suggest_int('n_estimators', *kwargs.get('n_estimators', (50, 200)))
+        max_depth = trial.suggest_int('max_depth', *kwargs.get('max_depth', (3, 9)))
+        learning_rate = trial.suggest_float('learning_rate', *kwargs.get('learning_rate', (0.01, 0.3)), log=True)
+        min_child_weight = trial.suggest_float('min_child_weight', *kwargs.get('min_child_weight', (1e-3, 1e1)), log=True)
+        gamma = trial.suggest_float('gamma', *kwargs.get('gamma', (1e-3, 1e1)), log=True)
+        subsample = trial.suggest_float('subsample', *kwargs.get('subsample', (0.5, 1.0)))
+        colsample_bytree = trial.suggest_float('colsample_bytree', *kwargs.get('colsample_bytree', (0.5, 1.0)))
+        reg_alpha = trial.suggest_float('reg_alpha', *kwargs.get('reg_alpha', (1e-3, 1e1)), log=True)
+        reg_lambda = trial.suggest_float('reg_lambda', *kwargs.get('reg_lambda', (1e-3, 1e1)), log=True)
 
         params = {
             'n_estimators': n_estimators,
