@@ -64,11 +64,13 @@ def hyperparameter_tuning(train_X: pd.DataFrame, train_y: pd.DataFrame, test_X: 
         }
         
         model = custom_model()
-        model.pca_fit(train_X, min(10, train_X.shape[1]))  # Assuming train_X is the correct dataframe
+        model.pca_fit(train_X, min(10, train_X.shape[1]))
         model.fit(train_X.values, train_y.values, params=params, early_stopping_rounds=10, random_state=42, apply_pca=True, verbose=False, n_splits=5)
         
         preds = model.predict(test_X.values)
         rmse = mean_squared_error(test_y.values, preds) ** 0.5
         return rmse
 
-    return objective_custom
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective_custom, n_trials=100)
+    return study.best_params, study.best_value
