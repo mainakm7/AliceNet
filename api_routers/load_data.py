@@ -8,7 +8,6 @@ import pandas as pd
 import os
 import requests
 
-
 router = APIRouter(prefix="/load", tags=["Load data"])
 
 @router.post("/upload-data", status_code=status.HTTP_200_OK)
@@ -28,11 +27,20 @@ async def upload_data(file: UploadFile = File(...)):
 @router.get("/filenames", status_code=status.HTTP_200_OK)
 async def data_filenames(subdir: str = Query("raw")) -> List[str]:
     data_path = data_dir_path(subdir=subdir)
+    if not os.path.exists(data_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Data directory not found."
+        )
     files = os.listdir(data_path)
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No files found in the data directory."
+        )
     return files
 
-
-@router.get("/raw", status_code=status.HTTP_200_OK)
+@router.get("/rawdf", status_code=status.HTTP_200_OK)
 async def load_rawdata():
     try:
         if sf_exp_upd is None or sf_exp_upd.empty:
@@ -62,14 +70,12 @@ async def load_rawdata():
             detail=f"Exception encountered: {str(e)}"
         )
 
-@router.post("/raw", status_code=status.HTTP_201_CREATED)
+@router.post("/rawfile", status_code=status.HTTP_201_CREATED)
 async def upload_rawdata(
     event_file: Optional[str] = Query(None, description="Select an event file from the list"),
     gene_file: Optional[str] = Query(None, description="Select a gene file from the list"),
     subdir: str = "raw"
 ) -> Dict[str, Dict]:
-    
-    
     try:
         # Fetch filenames dynamically
         response = requests.get("http://localhost:8000/load/filenames")
@@ -99,8 +105,8 @@ async def upload_rawdata(
 
         # Return the initialized data
         return {
-            "gene_df": initialize_data.sf_exp_upd.to_dict(orient="split"),
-            "event_df": initialize_data.sf_events_upd.to_dict(orient="split")
+            "gene_df": sf_exp_upd.to_dict(orient="split"),
+            "event_df": sf_events_upd.to_dict(orient="split")
         }
 
     except HTTPException as e:
@@ -112,31 +118,46 @@ async def upload_rawdata(
         )
 
 @router.get("/raw_mi", status_code=status.HTTP_200_OK)
-def load_midata(file = Query("mutualinfo_reg_one_to_one_MI_all.csv")) -> Dict[str, Dict]:
-    
-    mi_data = load_raw_mi_data(filename=file)
-    return {"raw_mi_data": mi_data.to_dict(orient="split")}
-
-@router.post("/melt_mi", status_code=status.HTTP_201_CREATED)
-def load_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
+def load_midata(file: str = Query("mutualinfo_reg_one_to_one_MI_all.csv")) -> Dict[str, Dict]:
     try:
-        mi_raw_data = requests.get("http://localhost:8000/load/raw_mi").json()
-        mi_raw_data = mi_raw_data["raw_mi_data"]
-        if not file:
-            mi_data = mi_melt_from_df(mi_raw_data)
-        else:
-            mi_data = mi_melt_from_file(filename=file)
+        mi_data = load_raw_mi_data(filename=file)
+        return {"raw_mi_data": mi_data.to_dict(orient="split")}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error loading raw MI data: {str(e)}"
+        )
+
+@router.get("/melt_mi", status_code=status.HTTP_201_CREATED)
+def melt_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
+    try:
+        response = requests.get("http://localhost:8000/load/raw_mi")
+        response.raise_for_status()
+        mi_raw_data = response.json().get("raw_mi_data")
         
+        if not mi_raw_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Raw MI data not found."
+            )
+        
+        mi_data = mi_melt_from_df(mi_raw_data) if not file else mi_melt_from_file(filename=file)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Error occurred: {str(e)}"
         )
 
-
 @router.get("/load_melted_mi", status_code=status.HTTP_200_OK)
-def load_meltedmidata(file = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")) -> Dict[str, Dict]:
-    
-    mi_data = load_melted_mi_data(filename=file)
-    return {"melted_mi_data": mi_data.to_dict(orient="split")}
+def load_meltedmidata(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")) -> Dict[str, Dict]:
+    try:
+        mi_data = load_melted_mi_data(filename=file)
+        return {"melted_mi_data": mi_data.to_dict(orient="split")}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error loading melted MI data: {str(e)}"
+        )
