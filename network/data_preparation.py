@@ -1,17 +1,16 @@
 import numpy as np
 import pandas as pd
 from typing import Optional, Tuple
-from ..utils.data_loader import load_melted_mi_data
-from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from sklearn.model_selection import train_test_split
+from ..utils.data_loader import load_melted_mi_data, sf_events_upd, sf_exp_upd
 
-def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, test_size: Optional[float] = 0.3, *args, **kwargs) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:   
+def data_preparation(specific_gene: str = "AR", event: str = None, test_size: Optional[float] = 0.3, *args, **kwargs) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Prepare machine learning data for predicting splicing events associated with splicing factors.
 
     Args:
-        event_index (int): Index of the splicing event to consider. Defaults to 1.
-        specific_gene (Optional[str]): Specific gene to filter events for. Defaults to None.
+        specific_gene (str): Specific gene to filter events for. Defaults to "AR".
+        event (str): Index of the splicing event to consider. Defaults to None.
         test_size (Optional[float]): Proportion of the dataset to include in the test split. Defaults to 0.3.
 
     Returns:
@@ -32,7 +31,6 @@ def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, 
     Example:
         To prepare data for training and testing with a specific gene 'AR' and an event index of 3:
         >>> train_X, train_y, test_X, test_y = data_preparation(event_index=3, specific_gene='AR')
-
     """
     # Load mutual information data
     mi_df = load_melted_mi_data()
@@ -50,18 +48,12 @@ def data_preparation(event_index: int = 1, specific_gene: Optional[str] = None, 
     # Calculate number of non-NaN values per row
     na_list = [series.dropna().shape[0] for _, series in sf_events_df.iterrows()]
 
-    # Select specific gene events if provided
-    if specific_gene:
-        sf_events_df_gene = sf_events_df[sf_events_df["gene"] == specific_gene]
-        if sf_events_df_gene.empty:
-            raise ValueError(f"No events found for the gene: {specific_gene}")
-        if event_index >= len(sf_events_df_gene):
-            raise IndexError(f"Event index {event_index} is out of bounds for gene {specific_gene}")
-        sf_events_df_individual = sf_events_df_gene.iloc[event_index, :-1]
-    else:
-        if event_index >= len(sf_events_df):
-            raise IndexError(f"Event index {event_index} is out of bounds")
-        sf_events_df_individual = sf_events_df.iloc[event_index, :-1]
+    # Select specific gene events
+    sf_events_df_gene = sf_events_df[sf_events_df["gene"] == specific_gene]
+    if sf_events_df_gene.empty:
+        raise ValueError(f"No events found for the gene: {specific_gene}")
+    
+    sf_events_df_individual = sf_events_df_gene.loc[event, :-1]  # Not taking last column -> column: "gene"
 
     # Function to prepare individual dataset for a specific splicing event
     def individual_dataset(X_df, y_df):

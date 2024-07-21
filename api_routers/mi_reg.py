@@ -1,7 +1,9 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
 from ..database import Database
 import requests
+from ..utils.data_loader import sf_events_upd
 import pandas as pd
+import numpy as np
 from typing import List, Dict, Any, Optional
 
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
@@ -44,12 +46,46 @@ async def mi_data_to_db(db: Database = Depends(get_db)):
             detail=f"An error occurred: {e}"
         )
 
+
+@router.get("/event_gene_select", status_code=status.HTTP_200_OK)
+async def select_specific_splicedgene() -> list[str]:
+    sf_events_df = sf_events_upd.copy()
+    sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
+    return list(np.unique(sf_events_df["gene"]))
+
+@router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
+async def select_specific_splicedevent(gene: str = Path("AR")) -> list[str]:
+    sf_events_df = sf_events_upd.copy()
+    sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
+    return list(sf_events_df[sf_events_df["gene"] == gene].index)
+    
+    
+async def get_genes() -> list[str]:
+    return await select_specific_splicedgene()
+
+async def get_events(gene: str) -> list[str]:
+    return await select_specific_splicedevent(gene) 
+
+
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
 async def mi_gene_events_query(
     gene: str = Path("AR", description="Gene to query"),
     event: Optional[str] = Query(None, description="Splicing event to filter"),
+    genes: List[str] = Depends(get_genes),
+    events: List[str] = Depends(lambda gene: get_events(gene)),
     db: Database = Depends(get_db)
 ) -> List[Dict[str, Any]]:
+    
+    # Validate gene and event
+    if gene not in genes:
+        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+    
+    # Fetch events for the specific gene
+    events = await get_events(gene)
+    
+    if event not in events:
+        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+    
     try:
         if not event:
             # Retrieve all events for the given gene
