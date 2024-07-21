@@ -2,7 +2,6 @@ from sklearn.feature_selection import mutual_info_regression
 import numpy as np
 import pandas as pd
 from joblib import delayed, Parallel
-from datetime import datetime
 import os
 from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from ..utils.data_dir_path import data_dir_path
@@ -58,8 +57,7 @@ def mi_regression_all():
 
     # Define the save path using current timestamp
     data_path_whole = data_dir_path()
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    save_path = os.path.join(data_path_whole, f"mi_reg_all_{timestamp}.csv")
+    save_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all.csv")
 
     # Save to CSV
     mi_reg_df.to_csv(save_path)

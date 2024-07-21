@@ -2,6 +2,8 @@ from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
 from ..database import Database
 import requests
 from ..utils.data_loader import sf_events_upd
+from ..mutual_info_regression.mi_regression_all import mi_regression_all
+from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df, mi_melt_from_file
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional
@@ -11,6 +13,35 @@ router = APIRouter(prefix="/mi", tags=["MI_regression"])
 def get_db():
     db = Database.get_db()
     return db
+
+
+@router.get("/compute_mi", status_code=status.HTTP_200_OK)
+def compute_mi_all():
+    mi_df = mi_regression_all()
+    return mi_df.to_dict(orient="split")
+
+@router.get("/melt_mi", status_code=status.HTTP_201_CREATED)
+def melt_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
+    try:
+        response = requests.get("http://localhost:8000/load/raw_mi")
+        response.raise_for_status()
+        mi_raw_data = response.json().get("raw_mi_data")
+        
+        if not mi_raw_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Raw MI data not found."
+            )
+        
+        mi_data = mi_melt_from_df(mi_raw_data) if not file else mi_melt_from_file(filename=file)
+        return {"melted_mi_data": mi_data.to_dict(orient="split")}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error occurred: {str(e)}"
+        )
 
 @router.get("/mi_data", status_code=status.HTTP_201_CREATED)
 async def mi_data_to_db(db: Database = Depends(get_db)):

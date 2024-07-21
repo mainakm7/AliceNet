@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from typing import Dict, List, Optional
 from ..utils.data_loader import initialize_data, data_files_exist, load_melted_mi_data, load_raw_mi_data, sf_exp_upd, sf_events_upd
 from ..utils.data_dir_path import data_dir_path
-from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df, mi_melt_from_file
 import pandas as pd
 import os
 import requests
@@ -128,28 +127,7 @@ def load_midata(file: str = Query("mutualinfo_reg_one_to_one_MI_all.csv")) -> Di
             detail=f"Error loading raw MI data: {str(e)}"
         )
 
-@router.get("/melt_mi", status_code=status.HTTP_201_CREATED)
-def melt_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
-    try:
-        response = requests.get("http://localhost:8000/load/raw_mi")
-        response.raise_for_status()
-        mi_raw_data = response.json().get("raw_mi_data")
-        
-        if not mi_raw_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Raw MI data not found."
-            )
-        
-        mi_data = mi_melt_from_df(mi_raw_data) if not file else mi_melt_from_file(filename=file)
-        return {"melted_mi_data": mi_data.to_dict(orient="split")}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Error occurred: {str(e)}"
-        )
+
 
 @router.get("/load_melted_mi", status_code=status.HTTP_200_OK)
 def load_meltedmidata(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")) -> Dict[str, Dict]:
