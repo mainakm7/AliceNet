@@ -17,10 +17,18 @@ def get_db():
 
 @router.get("/compute_mi", status_code=status.HTTP_200_OK)
 def compute_mi_all():
-    mi_df = mi_regression_all()
-    return mi_df.to_dict(orient="split")
+    try:
+        mi_df = mi_regression_all()
+        return {"raw_mi_data": mi_df.to_dict(orient="split")}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error occurred: {str(e)}"
+        )
 
-@router.get("/melt_mi", status_code=status.HTTP_201_CREATED)
+@router.get("/melt_mi", status_code=status.HTTP_200_OK)
 def melt_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
     try:
         response = requests.get("http://localhost:8000/load/raw_mi")
