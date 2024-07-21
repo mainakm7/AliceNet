@@ -93,7 +93,7 @@ async def select_specific_splicedgene() -> list[str]:
     return list(np.unique(sf_events_df["gene"]))
 
 @router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
-async def select_specific_splicedevent(gene: str = Path("AR")) -> list[str]:
+async def select_specific_splicedevent(gene: str = Path()) -> list[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
@@ -108,7 +108,7 @@ async def get_events(gene: str) -> list[str]:
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
 async def mi_gene_events_query(
-    gene: str = Path("AR", description="Gene to query"),
+    gene: str = Path(description="Gene to query"),
     event: Optional[str] = Query(None, description="Splicing event to filter"),
     genes: List[str] = Depends(get_genes),
     events: List[str] = Depends(lambda gene: get_events(gene)),

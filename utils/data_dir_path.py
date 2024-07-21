@@ -17,7 +17,8 @@ def data_dir_path(subdir: str = "processed") -> str:
     """
     data_path = os.path.join('data', subdir)
     curr_path = os.getcwd()
-    parent_dir = os.path.abspath(os.path.join(curr_path, os.pardir))
+    dir_path = os.path.join(curr_path,"AliceNet")
+    parent_dir = os.path.abspath(os.path.join(dir_path, os.pardir))
     data_path_whole = os.path.join(parent_dir, data_path)
     
     # Create the directory if it doesn't exist

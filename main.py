@@ -16,9 +16,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(network)
-app.include_router(mi_reg)
-app.include_router(load_data)
+app.include_router(network.router)
+app.include_router(mi_reg.router)
+app.include_router(load_data.router)
 
 @app.get("/healthy", status_code=status.HTTP_200_OK)
 def health_check():

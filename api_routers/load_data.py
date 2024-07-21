@@ -1,27 +1,26 @@
 from fastapi import APIRouter, Query, status, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse
 from typing import Dict, List, Optional
-from ..utils.data_loader import initialize_data, data_files_exist, load_melted_mi_data, load_raw_mi_data, sf_exp_upd, sf_events_upd
+from ..utils.data_loader import initialize_data, load_melted_mi_data, load_raw_mi_data, sf_exp_upd, sf_events_upd
 from ..utils.data_dir_path import data_dir_path
 import pandas as pd
 import os
 import requests
 
+
 router = APIRouter(prefix="/load", tags=["Load data"])
 
-@router.post("/upload-data", status_code=status.HTTP_200_OK)
+@router.post("/upload_data", status_code=status.HTTP_200_OK)
 async def upload_data(file: UploadFile = File(...)):
     data_path_whole = data_dir_path(subdir="raw")
     file_location = os.path.join(data_path_whole, file.filename)
 
-    with open(file_location, "wb") as f:
-        f.write(file.file.read())
-
-    # Check if both files are present after upload
-    if data_files_exist():
+    try:
+        with open(file_location, "wb") as f:
+            f.write(file.file.read())
         return {"info": "Data files uploaded successfully."}
-    else:
-        return {"info": "File uploaded, but both required data files are not present."}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"File upload error: {e}")
+
 
 @router.get("/filenames", status_code=status.HTTP_200_OK)
 async def data_filenames(subdir: str = Query("raw")) -> List[str]:
