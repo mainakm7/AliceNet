@@ -5,7 +5,7 @@ from ..network.hyperparameter_tuning import hyperparameter_tuning
 from ..network.data_preparation import data_preparation
 from ..network.xgboostnet import xgboostnet
 from ..network.shap_PC_clustering import get_elbow, get_adj_matrix
-from ..clustering.feature_clustering import feature_clustering
+from ..clustering.feature_clustering import feature_clustering, spectral_elbow
 from ..utils.data_loader import sf_events_upd
 import pandas as pd
 import numpy as np
@@ -180,15 +180,96 @@ async def hcluster_elbow_dist(
 
         distances = get_elbow(final_model_custom=final_model, train_X=train_data)
         
-        return distances
+        return {"heirarchical_distances":distances}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error encountered: {e}"
         )
 
-@router.post("/hcluster/{gene}", response_model=Dict[str, List[str]], status_code=status.HTTP_200_OK)
-async def feature_cluster(
+@router.post("/hcluster/{gene}", response_model=Dict[str, List[str]], status_code=status.HTTP_201_CREATED)
+async def hcluster_adj_matrix(
+    num_cluster: int,
+    gene: str = Path(..., description="Choose a gene to analyze"),
+    event: str = Query(..., description="Choose an event of the chosen gene"),
+    genes: List[str] = Depends(get_genes)
+):
+    if gene not in genes:
+        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+    
+    gene_events = await get_events(gene)
+    
+    if event not in gene_events:
+        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+
+    try:
+        # Fetch the XGBoost fit results
+        response = requests.get(f"http://localhost:8000/xgboostnetquery/{gene}?event={event}")
+        response.raise_for_status()
+        xgboost_fit_data = response.json()
+
+        final_model_serialized = xgboost_fit_data[0]["xgboost_final_model"]
+        train_data_serialized = xgboost_fit_data[0]["xgboost_train_data"]
+
+        # Deserialize the XGBoost model and training data
+        final_model = pickle.loads(final_model_serialized)
+        train_data = pickle.loads(train_data_serialized)
+
+        # Generate the adjacency matrix and return it
+        adj_matrix_df = get_adj_matrix(final_model_custom=final_model, train_X=train_data, num_clusters=num_cluster)
+        return adj_matrix_df.to_dict(orient="split")
+    except requests.RequestException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error querying fit results: {e}")
+    except (pickle.PickleError, ValueError) as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deserializing data: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+
+
+
+
+@router.get("/spcluster_elbow/{gene}", response_model=Dict[str, List[float]], status_code=status.HTTP_200_OK)
+async def spcluster_elbow_eigenval(
+    gene: str = Path(..., description="Choose a gene to analyze"),
+    event: str = Query(..., description="Choose an event of the chosen gene"),
+    genes: List[str] = Depends(get_genes)
+):
+    if gene not in genes:
+        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+    
+    gene_events = await get_events(gene)
+    
+    if event not in gene_events:
+        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+
+    try:
+        # Fetch the adjacency matrix
+        response = requests.get(f"http://localhost:8000/hcluster/{gene}?event={event}")
+        response.raise_for_status()
+        adj_mat_response = response.json()
+
+        adj_matrix_df = pd.DataFrame(
+            adj_mat_response["adj_matrix_df"]["data"],
+            index=adj_mat_response["adj_matrix_df"]["index"],
+            columns=adj_mat_response["adj_matrix_df"]["columns"]
+        )
+
+        # Compute eigenvalues for spectral elbow method
+        eigenvalues = spectral_elbow(adj_matrix_df)
+        
+        return {"eigenvalues": eigenvalues}
+    except requests.RequestException as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Error fetching data from external endpoint: {e}")
+    except KeyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Unexpected response structure: {e}")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing data: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+
+        
+@router.post("/spcluster/{gene}", response_model=Dict[str, List[str]], status_code=status.HTTP_201_CREATED)
+async def hcluster_adj_matrix(
     num_cluster: int,
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
@@ -214,14 +295,9 @@ async def feature_cluster(
         train_data = pickle.loads(train_data_serialized)
 
         adj_matrix_df = get_adj_matrix(final_model_custom=final_model, train_X=train_data, num_clusters=num_cluster)
-        
-        clustered_genes = feature_clustering(adj_matrix_whole_df=adj_matrix_df, num_clusters=num_cluster)
-        clustering_results = {f"Cluster {i}": cluster for i, cluster in enumerate(clustered_genes)}
 
-        return clustering_results
+        return {"adj_matrix_df": adj_matrix_df}
     except requests.RequestException as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred while querying fit results: {e}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
-
-
