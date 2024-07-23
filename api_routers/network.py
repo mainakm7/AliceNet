@@ -106,11 +106,10 @@ def hp_tuning(hparams: Hyperparameters):
 
 @router.get("/xgboostnetfit/{gene}", status_code=status.HTTP_200_OK)
 async def xgboostnetfit(
-    gene: str = Path(description="Choose a gene to analyze"),
-    event: str = Query(description="Choose an event of the chosen gene"),
+    gene: str = Path(...,description="Choose a gene to analyze"),
+    event: str = Query(...,description="Choose an event of the chosen gene"),
     db: Database = Depends(get_db),
-    genes: List[str] = Depends(get_genes),
-    events: List[str] = Depends(lambda gene: get_events(gene))
+    genes: List[str] = Depends(get_genes)
 ):
     # Validate gene and event
     if gene not in genes:
@@ -123,14 +122,15 @@ async def xgboostnetfit(
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
 
     try:
-        best_params, final_rmse = xgboostnet()
+        best_params, final_rmse, shap_df = xgboostnet(event_name=event)
 
         # Insert fit params into MongoDB
         db['xgboost_params'].insert_one({
             "spliced_gene": gene,
             "specific_event": event,
             "xgboost_params": best_params,
-            "xgboost_fit_rmse": final_rmse
+            "xgboost_fit_rmse": final_rmse,
+            "xgboost_fit_shap": shap_df.to_dict(orient="split")
         })
 
         return {"best_param": best_params, "final_rmse": final_rmse}
@@ -141,24 +141,12 @@ async def xgboostnetfit(
 
 
 @router.get("/xgboostnetquery/{gene}", status_code=status.HTTP_200_OK)
-async def xgboostnetfit(
+async def xgboostnetquery(
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
-    db: Database = Depends(get_db),
-    genes: List[str] = Depends(get_genes),
-    events: List[str] = Depends(lambda gene: get_events(gene))
+    db: Database = Depends(get_db)
 ):
-    # Validate gene and event
-    if gene not in genes:
-        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
-    
-    # Fetch events for the specific gene
-    events = await get_events(gene)
-    
-    if event not in events:
-        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
-
-    # Query from MongoDB
+   
     try:
         xgboost_fit = list(db['xgboost_params'].find({
             "spliced_gene": gene,
@@ -169,6 +157,39 @@ async def xgboostnetfit(
         return xgboost_fit
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+
+
+@router.get("/cluster/{gene}", status_code=status.HTTP_200_OK)
+async def feature_cluster(
+    gene: str = Path(..., description="Choose a gene to analyze"),
+    event: str = Query(..., description="Choose an event of the chosen gene"),
+    genes: List[str] = Depends(get_genes)
+):
     
+    # Validate gene and event
+    if gene not in genes:
+        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+    
+    # Fetch events for the specific gene
+    gene_events = await get_events(gene)
+    
+    if event not in gene_events:
+        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+
+    try:
+        response = requests.get(f"http://localhost:8000/xgboostnetquery/{gene}?event={event}")
+        response.raise_for_status()
+        xgboost_fit_data = response.json()
 
         
+        clustering_results = {
+            "gene": gene,
+            "event": event,
+            "cluster": ""
+        }
+
+        return clustering_results
+    except requests.RequestException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred while querying fit results: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
