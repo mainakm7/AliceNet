@@ -3,7 +3,7 @@ import numpy as np
 from .custom_model import custom_model
 from sklearn.metrics import mean_squared_error
 from ..utils.data_dir_path import data_dir_path
-from typing import Tuple
+from typing import Tuple, Dict
 import json
 import os
 import requests
@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 final_model_fit: custom_model
 train_data: pd.DataFrame
 
-def xgboostnet(event_name: str) -> Tuple[dict, float, pd.DataFrame]:
+def xgboostnet(event_name: str) -> Tuple[Dict, float, custom_model, pd.DataFrame]:
     """
     Train an XGBoost model with PCA preprocessing and hyperparameter optimization using Optuna.
 
@@ -20,7 +20,8 @@ def xgboostnet(event_name: str) -> Tuple[dict, float, pd.DataFrame]:
         event_name (str): The name of the event to save in the results.
 
     Returns:
-        tuple: Best hyperparameters found by Optuna, fit_rmse, Adjacency matrix for features after PC clustering.
+        Tuple[Dict, float, custom_model, pd.DataFrame]: A tuple containing the best hyperparameters found by Optuna,
+            the root mean squared error of the model, the fitted custom model, and the training data used.
     """
     try:
         # Perform data preparation
@@ -75,7 +76,7 @@ def xgboostnet(event_name: str) -> Tuple[dict, float, pd.DataFrame]:
         with open(whole_save_path, "w") as f:
             json.dump(event_data, f)
 
-        return best_params_custom, final_rmse_custom
+        return best_params_custom, final_rmse_custom, final_model_custom, train_X
 
     except requests.RequestException as e:
         raise HTTPException(
