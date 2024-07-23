@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, HTTPException, Query, Path, Depends
 from pydantic import BaseModel
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any, Union
 from ..network.hyperparameter_tuning import hyperparameter_tuning
 from ..network.data_preparation import data_preparation
 from ..network.xgboostnet import xgboostnet
@@ -268,8 +268,8 @@ async def spcluster_elbow_eigenval(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
         
-@router.post("/spcluster/{gene}", response_model=Dict[str, List[str]], status_code=status.HTTP_201_CREATED)
-async def hcluster_adj_matrix(
+@router.post("/spcluster/{gene}", response_model=Dict[str, List[Union[str, List[Union[str, float]]]]], status_code=status.HTTP_201_CREATED)
+async def spcluster_eigenval(
     num_cluster: int,
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
@@ -284,20 +284,30 @@ async def hcluster_adj_matrix(
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
 
     try:
-        response = requests.get(f"http://localhost:8000/xgboostnetquery/{gene}?event={event}")
+        # Fetch the adjacency matrix
+        response = requests.get(f"http://localhost:8000/hcluster/{gene}?event={event}")
         response.raise_for_status()
-        xgboost_fit_data = response.json()
+        adj_mat_response = response.json()
 
-        final_model_serialized = xgboost_fit_data[0]["xgboost_final_model"]
-        train_data_serialized = xgboost_fit_data[0]["xgboost_train_data"]
+        adj_matrix_df = pd.DataFrame(
+            adj_mat_response["adj_matrix_df"]["data"],
+            index=adj_mat_response["adj_matrix_df"]["index"],
+            columns=adj_mat_response["adj_matrix_df"]["columns"]
+        )
+        
+        # Perform feature clustering
+        clustered_genes, ordered_adj_matrix_df = feature_clustering(adj_matrix_whole_df=adj_matrix_df, num_clusters=num_cluster)
 
-        final_model = pickle.loads(final_model_serialized)
-        train_data = pickle.loads(train_data_serialized)
+        # Construct the response dictionary
+        response_data = {
+            "clustered_genes": clustered_genes,
+            "ordered_adj_matrix_df": ordered_adj_matrix_df.to_dict(orient="split")
+        }
 
-        adj_matrix_df = get_adj_matrix(final_model_custom=final_model, train_X=train_data, num_clusters=num_cluster)
-
-        return {"adj_matrix_df": adj_matrix_df}
+        return response_data
     except requests.RequestException as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred while querying fit results: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error fetching adjacency matrix: {e}")
+    except KeyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Unexpected response structure: {e}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
