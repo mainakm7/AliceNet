@@ -1,19 +1,23 @@
 from fastapi import APIRouter, status, HTTPException, Query, Path, Depends
 from pydantic import BaseModel
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 from ..network.hyperparameter_tuning import hyperparameter_tuning
 from ..network.data_preparation import data_preparation
 from ..network.xgboostnet import xgboostnet
+from ..network.shap_PC_clustering import get_elbow, get_adj_matrix
 from ..clustering.feature_clustering import feature_clustering
 from ..utils.data_loader import sf_events_upd
 import pandas as pd
 import numpy as np
 import requests
 from ..database import Database
+import pickle
+import io
 
-def get_db():
-    db = Database.get_db()
-    return db
+router = APIRouter(prefix="/network", tags=["Network"])
+
+def get_db() -> Database:
+    return Database.get_db()
 
 class Hyperparameters(BaseModel):
     n_estimators: Optional[Tuple[int, int]] = (50, 200)
@@ -29,27 +33,25 @@ class Hyperparameters(BaseModel):
 class DataParams(BaseModel):
     test_size: Optional[float] = 0.3
 
-router = APIRouter(prefix="/network", tags=["Network"])
-
-@router.get("/event_gene_select", status_code=status.HTTP_200_OK)
+@router.get("/event_gene_select", response_model=List[str], status_code=status.HTTP_200_OK)
 async def select_specific_splicedgene() -> List[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
-@router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
+@router.get("/specific_event_select/{gene}", response_model=List[str], status_code=status.HTTP_200_OK)
 async def select_specific_splicedevent(gene: str = Path(..., description="Gene name")) -> List[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
-    
+
 async def get_genes() -> List[str]:
     return await select_specific_splicedgene()
 
 async def get_events(gene: str) -> List[str]:
-    return await select_specific_splicedevent(gene)   
+    return await select_specific_splicedevent(gene)
 
-@router.post("/data_prepare/{gene}", status_code=status.HTTP_201_CREATED)
+@router.post("/data_prepare/{gene}", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def data_prepare(
     param: DataParams,
     gene: str = Path(..., description="Choose a gene to analyze"),
@@ -59,9 +61,6 @@ async def data_prepare(
 ):
     if gene not in genes:
         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
-    
-    # Fetch events for the specific gene
-    events = await get_events(gene)
     
     if event not in events:
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
@@ -80,7 +79,7 @@ async def data_prepare(
     except IndexError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/hptuning", status_code=status.HTTP_201_CREATED)
+@router.post("/hptuning", response_model=Dict[str, float], status_code=status.HTTP_201_CREATED)
 def hp_tuning(hparams: Hyperparameters):
     try:
         response = requests.get("http://localhost:8000/network/data_prepare")
@@ -99,41 +98,45 @@ def hp_tuning(hparams: Hyperparameters):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.get("/xgboostnetfit/{gene}", status_code=status.HTTP_200_OK)
+@router.get("/xgboostnetfit/{gene}", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
 async def xgboostnetfit(
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
     db: Database = Depends(get_db),
     genes: List[str] = Depends(get_genes)
 ):
-    # Validate gene and event
     if gene not in genes:
         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
     
-    # Fetch events for the specific gene
     events = await get_events(gene)
     
     if event not in events:
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
 
     try:
-        best_params, final_rmse = xgboostnet(event_name=event)
+        best_params, final_rmse, final_model, train_data = xgboostnet(event_name=event)
 
-        # Insert fit params into MongoDB
+        # Convert model and data to serialized format
+        model_serialized = pickle.dumps(final_model)
+        train_data_serialized = pickle.dumps(train_data)
+
+        # Store parameters and serialized data in MongoDB
         db['xgboost_params'].insert_one({
             "spliced_gene": gene,
             "specific_event": event,
             "xgboost_params": best_params,
-            "xgboost_fit_rmse": final_rmse
+            "xgboost_fit_rmse": final_rmse,
+            "xgboost_final_model": model_serialized,
+            "xgboost_train_data": train_data_serialized
         })
 
-        return {"best_param": best_params, "final_rmse": final_rmse}
+        return {"best_params": best_params, "final_rmse": final_rmse}
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.get("/xgboostnetquery/{gene}", status_code=status.HTTP_200_OK)
+@router.get("/xgboostnetquery/{gene}", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
 async def xgboostnetquery(
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
@@ -150,18 +153,50 @@ async def xgboostnetquery(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/cluster/{gene}", status_code=status.HTTP_200_OK)
+@router.get("/hcluster_elbow/{gene}", response_model=List[float], status_code=status.HTTP_200_OK)
+async def hcluster_elbow_dist(
+    gene: str = Path(..., description="Choose a gene to analyze"),
+    event: str = Query(..., description="Choose an event of the chosen gene"),
+    genes: List[str] = Depends(get_genes)
+):
+    if gene not in genes:
+        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+    
+    gene_events = await get_events(gene)
+    
+    if event not in gene_events:
+        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+
+    try:
+        response = requests.get(f"http://localhost:8000/xgboostnetquery/{gene}?event={event}")
+        response.raise_for_status()
+        xgboost_fit_data = response.json()
+        
+        final_model_serialized = xgboost_fit_data[0]["xgboost_final_model"]
+        train_data_serialized = xgboost_fit_data[0]["xgboost_train_data"]
+
+        final_model = pickle.loads(final_model_serialized)
+        train_data = pickle.loads(train_data_serialized)
+
+        distances = get_elbow(final_model_custom=final_model, train_X=train_data)
+        
+        return distances
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error encountered: {e}"
+        )
+
+@router.post("/hcluster/{gene}", response_model=Dict[str, List[str]], status_code=status.HTTP_200_OK)
 async def feature_cluster(
     num_cluster: int,
     gene: str = Path(..., description="Choose a gene to analyze"),
     event: str = Query(..., description="Choose an event of the chosen gene"),
     genes: List[str] = Depends(get_genes)
 ):
-    # Validate gene and event
     if gene not in genes:
         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
     
-    # Fetch events for the specific gene
     gene_events = await get_events(gene)
     
     if event not in gene_events:
@@ -172,11 +207,13 @@ async def feature_cluster(
         response.raise_for_status()
         xgboost_fit_data = response.json()
 
-        adj_matrix_df = pd.DataFrame(
-            xgboost_fit_data[0]["xgboost_fit_adj_matrix"]["data"],
-            index=xgboost_fit_data[0]["xgboost_fit_adj_matrix"]["index"],
-            columns=xgboost_fit_data[0]["xgboost_fit_adj_matrix"]["columns"]
-        )
+        final_model_serialized = xgboost_fit_data[0]["xgboost_final_model"]
+        train_data_serialized = xgboost_fit_data[0]["xgboost_train_data"]
+
+        final_model = pickle.loads(final_model_serialized)
+        train_data = pickle.loads(train_data_serialized)
+
+        adj_matrix_df = get_adj_matrix(final_model_custom=final_model, train_X=train_data, num_clusters=num_cluster)
         
         clustered_genes = feature_clustering(adj_matrix_whole_df=adj_matrix_df, num_clusters=num_cluster)
         clustering_results = {f"Cluster {i}": cluster for i, cluster in enumerate(clustered_genes)}
@@ -186,3 +223,5 @@ async def feature_cluster(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred while querying fit results: {e}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+
+
