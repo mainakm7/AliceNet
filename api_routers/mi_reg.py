@@ -40,8 +40,8 @@ def melt_midata() -> Dict[str, Dict]:
                 detail="Raw MI data not found."
             )
         
-        mi_data = mi_melt_from_df(mi_raw_data_fetched)
-        return {"melted_mi_data": mi_data.to_dict(orient="split")}
+        mi_data_melted = mi_melt_from_df(mi_raw_data_fetched)
+        return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
     except HTTPException as e:
         raise e
     except Exception as e:
