@@ -1,5 +1,4 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
-from fastapi.concurrency import run_in_threadpool
 from ..database import Database
 import requests
 from ..utils.data_loader import sf_events_upd, mi_raw_data, mi_melted_data
@@ -17,9 +16,9 @@ def get_db():
 
 
 @router.get("/compute_mi", status_code=status.HTTP_200_OK)
-async def compute_mi_all():
+def compute_mi_all():
     try:
-        mi_df = await run_in_threadpool(mi_regression_all)
+        mi_df = mi_regression_all()
         if mi_df is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MI data not computed.")
         return {"raw_mi_data": mi_df.to_dict(orient="split")}
@@ -32,7 +31,7 @@ async def compute_mi_all():
         )
 
 @router.get("/melt_mi", status_code=status.HTTP_200_OK)
-async def melt_midata() -> Dict[str, Dict]:
+def melt_midata() -> Dict[str, Dict]:
     try:
         
         mi_raw_data_fetched = mi_raw_data
@@ -43,7 +42,7 @@ async def melt_midata() -> Dict[str, Dict]:
                 detail="Raw MI data not found."
             )
         
-        mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_data_fetched)
+        mi_data_melted = mi_melt_from_df(mi_raw_data_fetched)
         return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
     except HTTPException as e:
         raise e
@@ -54,7 +53,7 @@ async def melt_midata() -> Dict[str, Dict]:
         )
 
 @router.get("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
-async def mi_data_to_db(db: Database = Depends(get_db)):
+def mi_data_to_db(db: Database = Depends(get_db)):
     try:
         
         melted_mi_data_fetched = mi_melted_data
@@ -85,13 +84,13 @@ async def mi_data_to_db(db: Database = Depends(get_db)):
 
 
 @router.get("/event_gene_select", status_code=status.HTTP_200_OK)
-async def select_specific_splicedgene() -> list[str]:
+def select_specific_splicedgene() -> list[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
 @router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
-async def select_specific_splicedevent(gene: str = Path()) -> list[str]:
+def select_specific_splicedevent(gene: str = Path()) -> list[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
@@ -105,7 +104,7 @@ async def get_events(gene: str) -> list[str]:
 
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
-async def mi_gene_events_query(
+def mi_gene_events_query(
     gene: str = Path(description="Gene to query"),
     event: Optional[str] = Query(None, description="Splicing event to filter"),
     genes: List[str] = Depends(get_genes),
@@ -118,7 +117,7 @@ async def mi_gene_events_query(
         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
     
     # Fetch events for the specific gene
-    events = await get_events(gene)
+    events = get_events(gene)
     
     if event not in events:
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
