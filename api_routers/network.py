@@ -95,11 +95,28 @@ async def xgboostnetfit(
     request: AllParams, 
     db: Database = Depends(get_db)
 ) -> Dict[str, Any]:
+    
     specific_gene = request.specific_gene
     event = request.event
+    test_size = request.test_size
     try:
+        
+        train_X, train_y, test_X, test_y = await run_in_threadpool(
+            data_preparation, specific_gene=specific_gene, event=event, test_size=test_size
+        )
+        data_dict = {
+            "train_X": train_X,
+            "train_y": train_y,
+            "test_X": test_X,
+            "test_y": test_y        
+        }
+        best_params, best_value = await run_in_threadpool(
+            hyperparameter_tuning, **data_dict, **hparams.model_dump()
+        )
+        
+        
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(
-            xgboostnet, hparams=hparams.model_dump(), dataparams=request.model_dump()
+            xgboostnet, data_dict, best_params, dataparams=request.model_dump()
         )
 
         
