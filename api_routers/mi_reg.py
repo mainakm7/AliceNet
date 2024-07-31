@@ -12,14 +12,16 @@ from ..utils.data_loader import sf_events_upd, sf_exp_upd, mi_melted_data, mi_ra
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
 
 class DataFrameRequest(BaseModel):
-    sf_exp_df: Dict
-    sf_events_df: Dict
+    sf_exp_df: Optional[Dict] = None
+    sf_events_df: Optional[Dict] = None
+    mi_raw_data: Optional[Dict] = None
+    mi_melted_data: Optional[Dict] = None
 
 def get_db():
     db = Database.get_db()
     return db
 
-@router.post("/compute_mi", status_code=status.HTTP_200_OK)
+@router.post("/compute_mi", status_code=status.HTTP_201_CREATED)
 async def compute_mi_all(request: DataFrameRequest) -> Dict[str, Any]:
     try:
         # Convert dictionaries back to DataFrames
@@ -40,16 +42,17 @@ async def compute_mi_all(request: DataFrameRequest) -> Dict[str, Any]:
             detail=f"Error occurred: {str(e)}"
         )
 
-@router.get("/melt_mi", status_code=status.HTTP_200_OK)
-async def melt_midata() -> Dict[str, Dict]:
+@router.post("/melt_mi", status_code=status.HTTP_201_CREATED)
+async def melt_midata(request: DataFrameRequest) -> Dict[str, Dict]:
     try:
+        mi_raw_data = request.mi_raw_data
         if mi_raw_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Raw MI data not found."
             )
-        
-        mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_data)
+        mi_raw_df = pd.DataFrame(mi_raw_data["data"], columns=mi_raw_data["columns"], index=mi_raw_data["index"])
+        mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_df)
         return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
     except HTTPException as e:
         raise e
@@ -59,15 +62,17 @@ async def melt_midata() -> Dict[str, Dict]:
             detail=f"Error occurred: {str(e)}"
         )
 
-@router.get("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
-async def mi_data_to_db(db: Database = Depends(get_db)) -> Dict[str, str]:
+@router.post("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
+async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db)) -> Dict[str, str]:
     try:
+        mi_melted_data = request.mi_melted_data
         if mi_melted_data is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Melted MI data not found.")
         
+        mi_melted_df = pd.DataFrame(mi_melted_data["data"], columns=mi_melted_data["columns"], index=mi_melted_data["index"])
         # Example: Inserting each row into MongoDB
         inserted_count = 0
-        for index, row in mi_melted_data.iterrows():
+        for index, row in mi_melted_df.iterrows():
             db['melted_mi_data'].insert_one({
                 "spliced_genes": row["spliced_genes"],
                 "events": row["Splicing events"],

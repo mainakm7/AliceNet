@@ -24,6 +24,9 @@ if "exp_df" in st.session_state and "event_df" in st.session_state:
             mi_dict = data["raw_mi_data"]
             mi_df = pd.DataFrame(mi_dict["data"], columns=mi_dict["columns"], index=mi_dict["index"])
             
+            # Write mi_df to session_state
+            st.session_state.mi_df = mi_df
+            
             with st.expander("Raw MI Dataframe:"):
                 st.write(mi_df)
         except requests.RequestException as e:
@@ -58,8 +61,7 @@ def load_mi_data(filename):
     try:
         response = requests.post("http://localhost:8000/load/raw_mi", json={"filename": filename})
         response.raise_for_status()  # Raise an exception for HTTP errors
-        data = response.json()
-        mi_data = data["raw_mi_data"]
+        mi_data = response.json()
         df = pd.DataFrame(mi_data['data'], columns=mi_data['columns'], index=mi_data['index'])
         return df
     except Exception as e:
@@ -76,6 +78,8 @@ with st.expander("Raw MI Dataframe:"):
     if MI_file and MI_file != "No files available":
         mi_df = load_mi_data(MI_file)
         if not mi_df.empty:
+            # Write mi_df to session_state
+            st.session_state.mi_df = mi_df
             st.write(mi_df)
         else:
             st.write("No data available.")

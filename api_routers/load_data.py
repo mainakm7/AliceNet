@@ -101,7 +101,7 @@ async def intersect_raw_data() -> JSONResponse:
 async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
         mi_data = await run_in_threadpool(load_raw_mi_data, request.filename)
-        return {"raw_mi_data": mi_data.to_dict(orient="split")}
+        return mi_data.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,7 +112,7 @@ async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
 async def load_meltedmidata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
         mi_data = await run_in_threadpool(load_melted_mi_data, request.filename)
-        return {"melted_mi_data": mi_data.to_dict(orient="split")}
+        return mi_data.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
