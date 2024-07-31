@@ -65,9 +65,9 @@ async def intersect_raw_data():
         )
 
 @router.post("/raw_mi", status_code=status.HTTP_201_CREATED)
-async def load_midata(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> Dict[str, Dict]:
+async def load_midata(raw_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> Dict[str, Dict]:
     try:
-        mi_data = await run_in_threadpool(load_raw_mi_data, filename)
+        mi_data = await run_in_threadpool(load_raw_mi_data, raw_mi_filename)
         return {"raw_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(

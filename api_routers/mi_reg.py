@@ -1,9 +1,9 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
 from ..database import Database
 import requests
-from ..utils.data_loader import sf_events_upd
+from ..utils.data_loader import sf_events_upd, mi_raw_data, mi_melted_data
 from ..mutual_info_regression.mi_regression_all import mi_regression_all
-from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df, mi_melt_from_file
+from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional
@@ -29,19 +29,18 @@ def compute_mi_all():
         )
 
 @router.get("/melt_mi", status_code=status.HTTP_200_OK)
-def melt_midata(file: Optional[str] = Query(None, description="Choose the MI matrix to melt")) -> Dict[str, Dict]:
+def melt_midata() -> Dict[str, Dict]:
     try:
-        response = requests.get("http://localhost:8000/load/raw_mi")
-        response.raise_for_status()
-        mi_raw_data = response.json().get("raw_mi_data")
         
-        if not mi_raw_data:
+        mi_raw_data_fetched = mi_raw_data
+        
+        if not mi_raw_data_fetched:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Raw MI data not found."
             )
         
-        mi_data = mi_melt_from_df(mi_raw_data) if not file else mi_melt_from_file(filename=file)
+        mi_data = mi_melt_from_df(mi_raw_data_fetched)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
     except HTTPException as e:
         raise e
@@ -51,19 +50,15 @@ def melt_midata(file: Optional[str] = Query(None, description="Choose the MI mat
             detail=f"Error occurred: {str(e)}"
         )
 
-@router.get("/mi_data", status_code=status.HTTP_201_CREATED)
+@router.get("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
 async def mi_data_to_db(db: Database = Depends(get_db)):
     try:
-        # Fetch melted MI data from another endpoint
-        response = requests.get("http://localhost:8000/load/melted_mi")
-        response.raise_for_status()  # Raise an exception for bad status codes
         
-        # Process melted MI data
-        melted_mi_data = pd.DataFrame(response.json().get("melted_mi_data"))
+        melted_mi_data_fetched = mi_melted_data
         
         # Example: Inserting each row into MongoDB
         inserted_count = 0
-        for index, row in melted_mi_data.iterrows():
+        for index, row in melted_mi_data_fetched.iterrows():
             db['melted_mi_data'].insert_one({
                 "spliced_genes": row["spliced_genes"],
                 "events": row["Splicing events"],
