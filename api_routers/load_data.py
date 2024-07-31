@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, status, HTTPException, UploadFile, File
-from typing import Dict, List
+from fastapi.concurrency import run_in_threadpool
+from typing import Dict, List, Optional
 from ..utils.data_loader import (
     intersect_exp_event, load_melted_mi_data, load_raw_mi_data,
     load_raw_exp_data, load_raw_event_data, sf_exp_upd, sf_events_upd
@@ -16,7 +17,7 @@ class FilenameRequest(BaseModel):
     filename: str
 
 @router.post("/upload_data", status_code=status.HTTP_201_CREATED)
-def upload_data(file: UploadFile = File(...)):
+async def upload_data(file: UploadFile = File(...)):
     data_path_whole = data_dir_path(subdir="raw")
     file_location = os.path.join(data_path_whole, file.filename)
 
@@ -28,7 +29,7 @@ def upload_data(file: UploadFile = File(...)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"File upload error: {e}")
 
 @router.get("/filenames", status_code=status.HTTP_200_OK)
-def data_filenames(subdir: str = Query("raw")) -> List[str]:
+async def data_filenames(subdir: str = Query("raw")) -> List[str]:
     data_path = data_dir_path(subdir=subdir)
     if not os.path.exists(data_path):
         raise HTTPException(
@@ -44,20 +45,20 @@ def data_filenames(subdir: str = Query("raw")) -> List[str]:
     return files
 
 @router.post("/load_expression", status_code=status.HTTP_201_CREATED)
-def load_expression_data(request: FilenameRequest):
+async def load_expression_data(request: FilenameRequest) -> Dict[str, any]:
     global sf_exp_upd
     try:
-        expression_df = load_raw_exp_data(request.filename)
+        expression_df = await run_in_threadpool(load_raw_exp_data, request.filename)
         sf_exp_upd = expression_df
         return expression_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Expression data load error: {e}")
 
 @router.post("/load_event", status_code=status.HTTP_201_CREATED)
-def load_event_data(request: FilenameRequest):
+async def load_event_data(request: FilenameRequest) -> Dict[str, any]:
     global sf_events_upd
     try:
-        event_df = load_raw_event_data(request.filename)
+        event_df = await run_in_threadpool(load_raw_event_data, request.filename)
         event_df = event_df.replace([np.inf, -np.inf], np.nan)  # Replace infinities with NaN
         event_df = event_df.fillna(-1)
         sf_events_upd = event_df
@@ -66,7 +67,7 @@ def load_event_data(request: FilenameRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
 
 @router.get("/sync_data", status_code=status.HTTP_200_OK)
-async def intersect_raw_data():
+async def intersect_raw_data() -> JSONResponse:
     try:
         # Ensure sf_exp_upd and sf_events_upd are populated correctly before this call
         if sf_exp_upd is None or sf_events_upd is None:
@@ -80,7 +81,7 @@ async def intersect_raw_data():
         sf_events_df = sf_events_upd.copy()
         
         # Perform intersection
-        sf_exp_df, sf_events_df = intersect_exp_event(sf_exp_df, sf_events_df)
+        sf_exp_df, sf_events_df = await run_in_threadpool(intersect_exp_event, sf_exp_df, sf_events_df)
         
         # Replace infinities with NaN and fill NaN with -1
         sf_events_df = sf_events_df.replace([np.inf, -np.inf], np.nan).fillna(-1)
@@ -97,9 +98,9 @@ async def intersect_raw_data():
         )
 
 @router.post("/raw_mi", status_code=status.HTTP_201_CREATED)
-def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
+async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
-        mi_data = load_raw_mi_data(request.filename)
+        mi_data = await run_in_threadpool(load_raw_mi_data, request.filename)
         return {"raw_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(
@@ -108,9 +109,9 @@ def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
         )
 
 @router.post("/load_melted_mi", status_code=status.HTTP_201_CREATED)
-def load_meltedmidata(request: FilenameRequest) -> Dict[str, Dict]:
+async def load_meltedmidata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
-        mi_data = load_melted_mi_data(request.filename)
+        mi_data = await run_in_threadpool(load_melted_mi_data, request.filename)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(

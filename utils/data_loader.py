@@ -104,6 +104,7 @@ def load_melted_mi_data(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted
     mi_data_path = os.path.join(data_path_whole, filename)
     
     mi_data = pd.read_csv(mi_data_path)
+    
     mi_melted_data = mi_data
     
     return mi_data

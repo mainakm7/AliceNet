@@ -1,16 +1,15 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
-from ..database import Database
-import requests
-from ..mutual_info_regression.mi_regression_all import mi_regression_all
-from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df
-from ..utils.data_loader import sf_events_upd,sf_exp_upd, mi_melted_data, mi_raw_data
-import pandas as pd
-import numpy as np
+from fastapi.concurrency import run_in_threadpool
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+import pandas as pd
+import numpy as np
+from ..database import Database
+from ..mutual_info_regression.mi_regression_all import mi_regression_all
+from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df
+from ..utils.data_loader import sf_events_upd, sf_exp_upd, mi_melted_data, mi_raw_data
 
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
-
 
 class DataFrameRequest(BaseModel):
     sf_exp_df: Dict
@@ -20,15 +19,14 @@ def get_db():
     db = Database.get_db()
     return db
 
-
 @router.post("/compute_mi", status_code=status.HTTP_200_OK)
-def compute_mi_all(request: DataFrameRequest):
+async def compute_mi_all(request: DataFrameRequest) -> Dict[str, Any]:
     try:
         # Convert dictionaries back to DataFrames
         sf_exp_df = pd.DataFrame(request.sf_exp_df['data'], columns=request.sf_exp_df['columns'], index=request.sf_exp_df['index'])
         sf_events_df = pd.DataFrame(request.sf_events_df['data'], columns=request.sf_events_df['columns'], index=request.sf_events_df['index'])
         
-        mi_df = mi_regression_all(sf_exp_df, sf_events_df)
+        mi_df = await run_in_threadpool(mi_regression_all, sf_exp_df, sf_events_df)
         
         if mi_df is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MI data not computed.")
@@ -43,18 +41,15 @@ def compute_mi_all(request: DataFrameRequest):
         )
 
 @router.get("/melt_mi", status_code=status.HTTP_200_OK)
-def melt_midata() -> Dict[str, Dict]:
+async def melt_midata() -> Dict[str, Dict]:
     try:
-        
-        mi_raw_data_fetched = mi_raw_data
-        
-        if not mi_raw_data_fetched:
+        if mi_raw_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Raw MI data not found."
             )
         
-        mi_data_melted = mi_melt_from_df(mi_raw_data_fetched)
+        mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_data)
         return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
     except HTTPException as e:
         raise e
@@ -65,14 +60,14 @@ def melt_midata() -> Dict[str, Dict]:
         )
 
 @router.get("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
-def mi_data_to_db(db: Database = Depends(get_db)):
+async def mi_data_to_db(db: Database = Depends(get_db)) -> Dict[str, str]:
     try:
-        
-        melted_mi_data_fetched = mi_melted_data
+        if mi_melted_data is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Melted MI data not found.")
         
         # Example: Inserting each row into MongoDB
         inserted_count = 0
-        for index, row in melted_mi_data_fetched.iterrows():
+        for index, row in mi_melted_data.iterrows():
             db['melted_mi_data'].insert_one({
                 "spliced_genes": row["spliced_genes"],
                 "events": row["Splicing events"],
@@ -82,78 +77,53 @@ def mi_data_to_db(db: Database = Depends(get_db)):
         
         return {"message": f"{inserted_count} records inserted successfully"}
     
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Error fetching data from external endpoint: {e}"
-        )
-    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {e}"
         )
 
-
 @router.get("/event_gene_select", status_code=status.HTTP_200_OK)
-def select_specific_splicedgene() -> list[str]:
+async def select_specific_splicedgene() -> List[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
 @router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
-def select_specific_splicedevent(gene: str = Path()) -> list[str]:
+async def select_specific_splicedevent(gene: str = Path(..., description="Gene to filter")) -> List[str]:
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
-    
-    
-async def get_genes() -> list[str]:
-    return await select_specific_splicedgene()
-
-async def get_events(gene: str) -> list[str]:
-    return await select_specific_splicedevent(gene) 
-
 
 @router.get("/{gene}", status_code=status.HTTP_200_OK)
-def mi_gene_events_query(
-    gene: str = Path(description="Gene to query"),
+async def mi_gene_events_query(
+    gene: str = Path(..., description="Gene to query"),
     event: Optional[str] = Query(None, description="Splicing event to filter"),
-    genes: List[str] = Depends(get_genes),
-    events: List[str] = Depends(lambda gene: get_events(gene)),
     db: Database = Depends(get_db)
 ) -> List[Dict[str, Any]]:
+    # Fetch available genes and events
+    genes = await select_specific_splicedgene()
+    events = await select_specific_splicedevent(gene)
     
     # Validate gene and event
     if gene not in genes:
         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
     
-    # Fetch events for the specific gene
-    events = get_events(gene)
-    
-    if event not in events:
+    if event and event not in events:
         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
     
     try:
-        if not event:
-            # Retrieve all events for the given gene
-            all_events = list(db['melted_mi_data'].find({"spliced_genes": gene}))
-            if not all_events:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No events found for the given gene"
-                )
-            return all_events
+        query = {"spliced_genes": gene}
+        if event:
+            query["events"] = event
         
-        # Retrieve specific event for the given gene
-        mi = db['melted_mi_data'].find({"spliced_genes": gene, "events": event})
-        mi_list = list(mi)
-        if not mi_list:
+        mi_data = list(db['melted_mi_data'].find(query))
+        if not mi_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No data found for the given gene and event"
             )
-        return mi_list
+        return mi_data
 
     except Exception as e:
         raise HTTPException(
