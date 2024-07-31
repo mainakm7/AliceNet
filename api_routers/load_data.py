@@ -7,8 +7,12 @@ from ..utils.data_loader import (
 )
 from ..utils.data_dir_path import data_dir_path
 import os
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/load", tags=["Load data"])
+
+class FilenameRequest(BaseModel):
+    filename: str
 
 @router.post("/upload_data", status_code=status.HTTP_201_CREATED)
 async def upload_data(file: UploadFile = File(...)):
@@ -39,17 +43,17 @@ async def data_filenames(subdir: str = Query("raw")) -> List[str]:
     return files
 
 @router.post("/load_expression", status_code=status.HTTP_201_CREATED)
-async def load_expression_data(exp_filename: str):
+async def load_expression_data(request: FilenameRequest):
     try:
-        expression_df = await run_in_threadpool(load_raw_exp_data, exp_filename)
+        expression_df = await run_in_threadpool(load_raw_exp_data, request.filename)
         return expression_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Expression data load error: {e}")
 
 @router.post("/load_event", status_code=status.HTTP_201_CREATED)
-async def load_event_data(event_filename: str):
+async def load_event_data(request: FilenameRequest):
     try:
-        event_df = await run_in_threadpool(load_raw_event_data, event_filename)
+        event_df = await run_in_threadpool(load_raw_event_data, request.filename)
         return event_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
@@ -65,9 +69,9 @@ async def intersect_raw_data():
         )
 
 @router.post("/raw_mi", status_code=status.HTTP_201_CREATED)
-async def load_midata(raw_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> Dict[str, Dict]:
+async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
-        mi_data = await run_in_threadpool(load_raw_mi_data, raw_mi_filename)
+        mi_data = await run_in_threadpool(load_raw_mi_data, request.filename)
         return {"raw_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(
@@ -76,9 +80,9 @@ async def load_midata(raw_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all.c
         )
 
 @router.post("/load_melted_mi", status_code=status.HTTP_201_CREATED)
-async def load_meltedmidata(melted_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> Dict[str, Dict]:
+async def load_meltedmidata(request: FilenameRequest) -> Dict[str, Dict]:
     try:
-        mi_data = await run_in_threadpool(load_melted_mi_data, melted_mi_filename)
+        mi_data = await run_in_threadpool(load_melted_mi_data, request.filename)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(
