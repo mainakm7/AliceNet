@@ -5,7 +5,7 @@ from .custom_model import custom_model
 from sklearn.metrics import mean_squared_error
 
 
-def hyperparameter_tuning(train_X: pd.DataFrame, train_y: pd.DataFrame, test_X: pd.DataFrame, test_y: pd.DataFrame, **kwargs):
+def hyperparameter_tuning(train_X: pd.DataFrame, train_y: pd.DataFrame, test_X: pd.DataFrame, test_y: pd.DataFrame, *args, **kwargs):
     """
     Perform hyperparameter tuning using Optuna for a custom model.
 
