@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Query, status, HTTPException, UploadFile, File
-from typing import Dict, List, Optional
-from ..utils.data_loader import initialize_data, load_melted_mi_data, load_raw_mi_data, sf_exp_upd, sf_events_upd
+from fastapi.concurrency import run_in_threadpool
+from typing import Dict, List
+from ..utils.data_loader import (
+    intersect_exp_event, load_melted_mi_data, load_raw_mi_data,
+    load_raw_exp_data, load_raw_event_data, sf_exp_upd, sf_events_upd
+)
 from ..utils.data_dir_path import data_dir_path
-import pandas as pd
 import os
-import requests
-
 
 router = APIRouter(prefix="/load", tags=["Load data"])
 
-@router.post("/upload_data", status_code=status.HTTP_200_OK)
+@router.post("/upload_data", status_code=status.HTTP_201_CREATED)
 async def upload_data(file: UploadFile = File(...)):
     data_path_whole = data_dir_path(subdir="raw")
     file_location = os.path.join(data_path_whole, file.filename)
@@ -20,7 +21,6 @@ async def upload_data(file: UploadFile = File(...)):
         return {"info": "Data files uploaded successfully."}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"File upload error: {e}")
-
 
 @router.get("/filenames", status_code=status.HTTP_200_OK)
 async def data_filenames(subdir: str = Query("raw")) -> List[str]:
@@ -38,87 +38,36 @@ async def data_filenames(subdir: str = Query("raw")) -> List[str]:
         )
     return files
 
-@router.get("/rawdf", status_code=status.HTTP_200_OK)
-async def load_rawdata():
+@router.post("/load_expression", status_code=status.HTTP_201_CREATED)
+async def load_expression_data(exp_filename: str):
     try:
-        if sf_exp_upd is None or sf_exp_upd.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Gene data not found."
-            )
+        expression_df = await run_in_threadpool(load_raw_exp_data, exp_filename)
+        return expression_df.to_dict(orient="split")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Expression data load error: {e}")
 
-        if sf_events_upd is None or sf_events_upd.empty:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Event data not found."
-            )
+@router.post("/load_event", status_code=status.HTTP_201_CREATED)
+async def load_event_data(event_filename: str):
+    try:
+        event_df = await run_in_threadpool(load_raw_event_data, event_filename)
+        return event_df.to_dict(orient="split")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
 
-        gene_df_dict = sf_exp_upd.to_dict(orient="split")
-        event_df_dict = sf_events_upd.to_dict(orient="split")
-
-        return {
-            "gene_df": gene_df_dict,
-            "event_df": event_df_dict
-        }
-    except HTTPException as e:
-        raise e
+@router.get("/sync_data", status_code=status.HTTP_200_OK)
+async def intersect_raw_data():
+    try:
+        await run_in_threadpool(intersect_exp_event, sf_exp_upd.copy(), sf_events_upd.copy())
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Exception encountered: {str(e)}"
+            detail=f"Error syncing up expression and event data: {e}"
         )
 
-@router.post("/rawfile", status_code=status.HTTP_201_CREATED)
-async def upload_rawdata(
-    event_file: Optional[str] = Query(None, description="Select an event file from the list"),
-    gene_file: Optional[str] = Query(None, description="Select a gene file from the list"),
-    subdir: str = "raw"
-) -> Dict[str, Dict]:
+@router.post("/raw_mi", status_code=status.HTTP_201_CREATED)
+async def load_midata(filename: str = "mutualinfo_reg_one_to_one_MI_all.csv") -> Dict[str, Dict]:
     try:
-        # Fetch filenames dynamically
-        response = requests.get("http://localhost:8000/load/filenames")
-        if response.status_code == status.HTTP_200_OK:
-            filenames = response.json()  # Assuming filenames are returned as a JSON list
-        else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch filenames. Status code: {response.status_code}"
-            )
-
-        if not filenames:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No filenames available. Please check the filenames endpoint."
-            )
-
-        # Validate selected filenames
-        if event_file not in filenames or gene_file not in filenames:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid filename selected. Please select from available filenames."
-            )
-
-        # Initialize data based on provided filenames and subdir
-        await initialize_data(event_file=event_file, gene_file=gene_file, subdir=subdir)
-
-        # Return the initialized data
-        return {
-            "gene_df": sf_exp_upd.to_dict(orient="split"),
-            "event_df": sf_events_upd.to_dict(orient="split")
-        }
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch or process data: {str(e)}"
-        )
-
-@router.get("/raw_mi", status_code=status.HTTP_200_OK)
-def load_midata(file: str = Query("mutualinfo_reg_one_to_one_MI_all.csv")) -> Dict[str, Dict]:
-    try:
-        mi_data = load_raw_mi_data(filename=file)
+        mi_data = await run_in_threadpool(load_raw_mi_data, filename)
         return {"raw_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(
@@ -126,12 +75,10 @@ def load_midata(file: str = Query("mutualinfo_reg_one_to_one_MI_all.csv")) -> Di
             detail=f"Error loading raw MI data: {str(e)}"
         )
 
-
-
-@router.get("/load_melted_mi", status_code=status.HTTP_200_OK)
-def load_meltedmidata(file: str = Query("mutualinfo_reg_one_to_one_MI_all_melted.csv")) -> Dict[str, Dict]:
+@router.post("/load_melted_mi", status_code=status.HTTP_201_CREATED)
+async def load_meltedmidata(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> Dict[str, Dict]:
     try:
-        mi_data = load_melted_mi_data(filename=file)
+        mi_data = await run_in_threadpool(load_melted_mi_data, filename)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(
