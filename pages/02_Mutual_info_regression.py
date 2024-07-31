@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 
+# Ensure DataFrames are available in session_state
 if "exp_df" in st.session_state and "event_df" in st.session_state:
     exp_df = st.session_state.exp_df
     event_df = st.session_state.event_df
@@ -58,16 +59,13 @@ def load_mi_data(filename):
         response = requests.post("http://localhost:8000/load/raw_mi", json={"filename": filename})
         response.raise_for_status()  # Raise an exception for HTTP errors
         data = response.json()
-        # Ensure that the response contains the expected keys
-        if all(k in data for k in ('data', 'columns', 'index')):
-            df = pd.DataFrame(data['data'], columns=data['columns'], index=data['index'])
-            return df
-        else:
-            st.error("Unexpected data format received.")
-            return pd.DataFrame()  # Return an empty DataFrame in case of error
-    except requests.RequestException as e:
+        mi_data = data["raw_mi_data"]
+        df = pd.DataFrame(mi_data['data'], columns=mi_data['columns'], index=mi_data['index'])
+        return df
+    except Exception as e:
         st.error(f"Error loading MI data: {str(e)}")
-        return pd.DataFrame()  # Return an empty DataFrame in case of error
+        # Return an empty DataFrame instead of None
+        return pd.DataFrame()
 
 # Selectbox for files
 filenames = fetch_file_list(subdir)
@@ -81,3 +79,5 @@ with st.expander("Raw MI Dataframe:"):
             st.write(mi_df)
         else:
             st.write("No data available.")
+    else:
+        st.write("Select a valid MI file to display.")
