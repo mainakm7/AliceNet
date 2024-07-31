@@ -33,7 +33,7 @@ class Hyperparameters(BaseModel):
 class AllParams(BaseModel):
     test_size: Optional[float] = 0.3
     num_cluster: Optional[int] = 10
-    gene: Optional[str] = None
+    specific_gene: Optional[str] = None
     event: Optional[str] = None
 
 @router.get("/event_gene_select", response_model=List[str], status_code=status.HTTP_200_OK)
@@ -50,11 +50,11 @@ async def select_specific_splicedevent(gene: str = Path(..., description="Gene n
 
 @router.post("/data_prepare", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def data_prepare(request: AllParams):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     test_size = request.test_size
     try:
-        train_X, train_y, test_X, test_y = await run_in_threadpool(data_preparation, specific_gene=gene, event_index=event, test_size=test_size)
+        train_X, train_y, test_X, test_y = await run_in_threadpool(data_preparation, specific_gene=specific_gene, event_index=event, test_size=test_size)
         return {
             "train_X": train_X.to_dict(),
             "train_y": train_y.to_dict(),
@@ -67,9 +67,12 @@ async def data_prepare(request: AllParams):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/hptuning", response_model=Dict[str, Union[Dict[str, Any], float]], status_code=status.HTTP_201_CREATED)
-async def hp_tuning(hparams: Hyperparameters):
+async def hp_tuning(hparams: Hyperparameters, request: AllParams):
+    specific_gene = request.specific_gene
+    event = request.event
+    test_size = request.test_size
     try:
-        response = requests.get("http://localhost:8000/network/data_prepare")
+        response = requests.post("http://localhost:8000/network/data_prepare", json={"specific_gene": specific_gene, "event": event, "test_size": test_size})
         response.raise_for_status()
         data = response.json()
 
@@ -87,7 +90,7 @@ async def hp_tuning(hparams: Hyperparameters):
 
 @router.post("/xgboostnetfit", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
 async def xgboostnetfit(request: AllParams, db: Database = Depends(get_db)):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     try:
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(xgboostnet, event_name=event)
@@ -98,7 +101,7 @@ async def xgboostnetfit(request: AllParams, db: Database = Depends(get_db)):
 
         # Store parameters and serialized data in MongoDB
         db['xgboost_params'].insert_one({
-            "spliced_gene": gene,
+            "spliced_gene": specific_gene,
             "specific_event": event,
             "xgboost_params": best_params,
             "xgboost_fit_rmse": final_rmse,
@@ -114,11 +117,11 @@ async def xgboostnetfit(request: AllParams, db: Database = Depends(get_db)):
 
 @router.post("/xgboostnetquery", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
 async def xgboostnetquery(request: AllParams, db: Database = Depends(get_db)):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     try:
         xgboost_fit = list(db['xgboost_params'].find({
-            "spliced_gene": gene,
+            "spliced_gene": specific_gene,
             "specific_event": event
         }))
         if not xgboost_fit:
@@ -127,12 +130,12 @@ async def xgboostnetquery(request: AllParams, db: Database = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.get("/hcluster_elbow", response_model=List[float], status_code=status.HTTP_200_OK)
+@router.post("/hcluster_elbow", response_model=List[float], status_code=status.HTTP_201_CREATED)
 async def hcluster_elbow_dist(request: AllParams):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     try:
-        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"gene": gene, "event": event})
+        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"specific_gene": specific_gene, "event": event})
         response.raise_for_status()
         xgboost_fit_data = response.json()
 
@@ -149,11 +152,11 @@ async def hcluster_elbow_dist(request: AllParams):
 
 @router.post("/hcluster", response_model=Dict[str, List[Any]], status_code=status.HTTP_201_CREATED)
 async def hcluster_adj_matrix(request: AllParams):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     num_cluster = request.num_cluster
     try:
-        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"gene": gene, "event": event})
+        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"specific_gene": specific_gene, "event": event})
         response.raise_for_status()
         xgboost_fit_data = response.json()
 
@@ -170,11 +173,11 @@ async def hcluster_adj_matrix(request: AllParams):
 
 @router.post("/scluster", response_model=Dict[str, List[Any]], status_code=status.HTTP_201_CREATED)
 async def scluster_adj_matrix(request: AllParams):
-    gene = request.gene
+    specific_gene = request.specific_gene
     event = request.event
     num_cluster = request.num_cluster
     try:
-        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"gene": gene, "event": event})
+        response = requests.post(f"http://localhost:8000/network/xgboostnetquery", json={"specific_gene": specific_gene, "event": event})
         response.raise_for_status()
         xgboost_fit_data = response.json()
 
