@@ -76,9 +76,9 @@ async def load_midata(raw_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all.c
         )
 
 @router.post("/load_melted_mi", status_code=status.HTTP_201_CREATED)
-async def load_meltedmidata(filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> Dict[str, Dict]:
+async def load_meltedmidata(melted_mi_filename: str = "mutualinfo_reg_one_to_one_MI_all_melted.csv") -> Dict[str, Dict]:
     try:
-        mi_data = await run_in_threadpool(load_melted_mi_data, filename)
+        mi_data = await run_in_threadpool(load_melted_mi_data, melted_mi_filename)
         return {"melted_mi_data": mi_data.to_dict(orient="split")}
     except Exception as e:
         raise HTTPException(

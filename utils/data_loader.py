@@ -30,15 +30,21 @@ def load_raw_exp_data(sf_exp_filename: str) -> pd.DataFrame:
 
     data_path_whole = data_dir_path(subdir="raw")
     sf_exp_path = os.path.join(data_path_whole, sf_exp_filename)
-    sf_exp_df = pd.read_csv(sf_exp_path)
     
-    sf_exp_df.set_index(sf_exp_df.iloc[:, 0], inplace=True)
-    sf_exp_df = sf_exp_df.iloc[:, 1:]
+    if not os.path.exists(sf_exp_path):
+        raise FileNotFoundError(f"File {sf_exp_path} does not exist.")
+    
+    try:
+        sf_exp_df = pd.read_csv(sf_exp_path)
+        sf_exp_df.set_index(sf_exp_df.iloc[:, 0], inplace=True)
+        sf_exp_df = sf_exp_df.iloc[:, 1:]
+    except Exception as e:
+        raise RuntimeError(f"Error reading file {sf_exp_path}: {e}")
     
     sf_exp_upd = sf_exp_df
     return sf_exp_df
 
-def load_raw_event_data(sf_event_filename: str) -> pd.DataFrame:
+def load_raw_event_data(sf_events_filename: str) -> pd.DataFrame:
     """
     Load raw splicing event data.
     """
@@ -48,11 +54,17 @@ def load_raw_event_data(sf_event_filename: str) -> pd.DataFrame:
         return sf_events_upd
 
     data_path_whole = data_dir_path(subdir="raw")
-    sf_events_path = os.path.join(data_path_whole, sf_event_filename)
-    sf_events_df = pd.read_csv(sf_events_path)
+    sf_events_path = os.path.join(data_path_whole, sf_events_filename)
     
-    sf_events_df.set_index(sf_events_df.iloc[:, 0], inplace=True)
-    sf_events_df = sf_events_df.iloc[:, 1:]
+    if not os.path.exists(sf_events_path):
+        raise FileNotFoundError(f"File {sf_events_path} does not exist.")
+    
+    try:
+        sf_events_df = pd.read_csv(sf_events_path)
+        sf_events_df.set_index(sf_events_df.iloc[:, 0], inplace=True)
+        sf_events_df = sf_events_df.iloc[:, 1:]
+    except Exception as e:
+        raise RuntimeError(f"Error reading file {sf_events_path}: {e}")
     
     sf_events_upd = sf_events_df
     return sf_events_df
