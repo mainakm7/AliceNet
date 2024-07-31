@@ -42,55 +42,104 @@ if st.button("Refresh file list"):
     else:
         st.write("No files found.")
 
-# Selectbox for files
-filenames = fetch_file_list(subdir)
-if filenames:
-    exp_file = st.selectbox("Select expression file", filenames)
-else:
-    st.write("No files available to select.")
 
-def load_exp_data(filename):
+st.header("Raw DataFrames:")
+
+tab1, tab2 = st.tabs(["Expression data", "Event data"])
+
+with tab1:
+
+    # Selectbox for files
+    filenames = fetch_file_list(subdir)
+    if filenames:
+        exp_file = st.selectbox("Select expression file", filenames)
+    else:
+        st.write("No files available to select.")
+
+    def load_exp_data(filename):
+        try:
+            response = requests.post("http://localhost:8000/load/load_expression", json={"filename": filename})
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            data = response.json()
+            # Convert response dictionary back to DataFrame
+            df = pd.DataFrame(data['data'], columns=data['columns'], index=data['index'])
+            return df
+        except requests.RequestException as e:
+            st.error(f"Error loading expression data: {str(e)}")
+            return pd.DataFrame()  # Return an empty DataFrame in case of error
+
+    with st.expander("Show expression dataframe"):
+        if exp_file:
+            exp_df = load_exp_data(exp_file)
+            if not exp_df.empty:
+                st.write(exp_df)
+            else:
+                st.write("No data available.")
+
+with tab2:
+
+    if filenames:
+        event_file = st.selectbox("Select Event file", filenames)
+    else:
+        st.write("No files available to select.")
+
+    # Function to load expression data
+    def load_event_data(filename):
+        try:
+            response = requests.post("http://localhost:8000/load/load_event", json={"filename": filename})
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            data = response.json()
+            # Convert response dictionary back to DataFrame
+            df = pd.DataFrame(data['data'], columns=data['columns'], index=data['index'])
+            return df
+        except requests.RequestException as e:
+            st.error(f"Error loading event data: {str(e)}")
+            return pd.DataFrame()  # Return an empty DataFrame in case of error
+
+    with st.expander("Show event dataframe"):
+        if event_file:
+            event_df = load_event_data(event_file)
+            if not event_df.empty:
+                st.write(event_df)
+            else:
+                st.write("No data available.")
+
+st.header("Sync Patients for expression and event dataframes:")
+
+sync = st.button("Sync", type="primary")
+
+if sync:
     try:
-        response = requests.post("http://localhost:8000/load/load_expression", json={"filename": filename})
+        response = requests.get("http://localhost:8000/load/sync_data")
         response.raise_for_status()  # Raise an exception for HTTP errors
+        
         data = response.json()
-        # Convert response dictionary back to DataFrame
-        df = pd.DataFrame(data['data'], columns=data['columns'], index=data['index'])
-        return df
-    except requests.RequestException as e:
-        st.error(f"Error loading expression data: {str(e)}")
-        return pd.DataFrame()  # Return an empty DataFrame in case of error
-
-with st.expander("Show expression dataframe"):
-    if exp_file:
-        exp_df = load_exp_data(exp_file)
-        if not exp_df.empty:
+        
+        # Extract and convert expression dataframe
+        exp_dict = data["exp_df"]
+        exp_df = pd.DataFrame(
+            exp_dict["data"], 
+            columns=exp_dict["columns"], 
+            index=exp_dict["index"]
+        )
+        
+        # Extract and convert event dataframe
+        event_dict = data["event_df"]
+        event_df = pd.DataFrame(
+            event_dict["data"], 
+            columns=event_dict["columns"], 
+            index=event_dict["index"]
+        )
+        
+        with st.expander("Show synced expression dataframe"):
             st.write(exp_df)
-        else:
-            st.write("No data available.")
-
-if filenames:
-    event_file = st.selectbox("Select Event file", filenames)
-else:
-    st.write("No files available to select.")
-
-# Function to load expression data
-def load_event_data(filename):
-    try:
-        response = requests.post("http://localhost:8000/load/load_event", json={"filename": filename})
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        data = response.json()
-        # Convert response dictionary back to DataFrame
-        df = pd.DataFrame(data['data'], columns=data['columns'], index=data['index'])
-        return df
-    except requests.RequestException as e:
-        st.error(f"Error loading event data: {str(e)}")
-        return pd.DataFrame()  # Return an empty DataFrame in case of error
-
-with st.expander("Show event dataframe"):
-    if event_file:
-        event_df = load_event_data(event_file)
-        if not event_df.empty:
+        
+        with st.expander("Show synced event dataframe"):
             st.write(event_df)
-        else:
-            st.write("No data available.")
+    
+    except requests.RequestException as e:
+        st.error(f"Error fetching synced data: {e}")
+    except KeyError as e:
+        st.error(f"Error processing response data: {e}")
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")

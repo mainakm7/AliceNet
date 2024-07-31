@@ -1,4 +1,5 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from ..database import Database
 import requests
 from ..utils.data_loader import sf_events_upd, mi_raw_data, mi_melted_data
@@ -16,9 +17,11 @@ def get_db():
 
 
 @router.get("/compute_mi", status_code=status.HTTP_200_OK)
-def compute_mi_all():
+async def compute_mi_all():
     try:
-        mi_df = mi_regression_all()
+        mi_df = await run_in_threadpool(mi_regression_all)
+        if mi_df is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MI data not computed.")
         return {"raw_mi_data": mi_df.to_dict(orient="split")}
     except HTTPException as e:
         raise e
@@ -29,7 +32,7 @@ def compute_mi_all():
         )
 
 @router.get("/melt_mi", status_code=status.HTTP_200_OK)
-def melt_midata() -> Dict[str, Dict]:
+async def melt_midata() -> Dict[str, Dict]:
     try:
         
         mi_raw_data_fetched = mi_raw_data
@@ -40,7 +43,7 @@ def melt_midata() -> Dict[str, Dict]:
                 detail="Raw MI data not found."
             )
         
-        mi_data_melted = mi_melt_from_df(mi_raw_data_fetched)
+        mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_data_fetched)
         return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
     except HTTPException as e:
         raise e

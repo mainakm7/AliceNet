@@ -15,6 +15,10 @@ def mi_regression_all():
     Returns:
         pd.DataFrame: DataFrame containing mutual information regression values.
     """
+    
+    if sf_events_upd.empty or sf_exp_upd.empty:
+        raise ValueError("Input DataFrames are empty.")
+    
     # Extract column and index names
     cols = sf_events_upd.index
     ind = sf_exp_upd.index
@@ -55,8 +59,7 @@ def mi_regression_all():
     # Convert to DataFrame
     mi_reg_df = pd.DataFrame(mi_reg_parallel, index=ind, columns=cols)
 
-    # Define the save path using current timestamp
-    data_path_whole = data_dir_path()
+    data_path_whole = data_dir_path(subdir="MI")
     save_path = os.path.join(data_path_whole, "mutualinfo_reg_one_to_one_MI_all.csv")
 
     # Save to CSV

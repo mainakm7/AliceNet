@@ -8,6 +8,8 @@ from ..utils.data_loader import (
 from ..utils.data_dir_path import data_dir_path
 import os
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+import numpy as np
 
 router = APIRouter(prefix="/load", tags=["Load data"])
 
@@ -54,6 +56,8 @@ async def load_expression_data(request: FilenameRequest):
 async def load_event_data(request: FilenameRequest):
     try:
         event_df = await run_in_threadpool(load_raw_event_data, request.filename)
+        event_df = event_df.replace([np.inf, -np.inf], np.nan)  # Replace infinities with NaN
+        event_df = event_df.fillna(-1)
         return event_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
@@ -61,7 +65,18 @@ async def load_event_data(request: FilenameRequest):
 @router.get("/sync_data", status_code=status.HTTP_200_OK)
 async def intersect_raw_data():
     try:
-        await run_in_threadpool(intersect_exp_event, sf_exp_upd.copy(), sf_events_upd.copy())
+        # Ensure sf_exp_upd and sf_events_upd are populated correctly before this call
+        sf_exp_df = sf_exp_upd.copy()
+        sf_events_df = sf_events_upd.copy()
+        
+        sf_exp_df, sf_events_df = await run_in_threadpool(intersect_exp_event, sf_exp_df, sf_events_df)
+        sf_event_df = sf_event_df.replace([np.inf, -np.inf], np.nan)  # Replace infinities with NaN
+        sf_event_df = sf_event_df.fillna(-1)
+        # Convert DataFrame to dictionary and send as JSON response
+        return JSONResponse(content={
+            "exp_df": sf_exp_df.to_dict(orient="split"),
+            "event_df": sf_events_df.to_dict(orient="split")
+        })
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
