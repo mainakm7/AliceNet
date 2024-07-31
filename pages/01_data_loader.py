@@ -20,7 +20,7 @@ if uploaded_file is not None:
         st.success("File uploaded successfully.")
     else:
         st.error(f"Error uploading file: {response.text}")
-        
+
 # List uploaded files section
 st.header("List of uploaded files")
 
@@ -42,13 +42,11 @@ if st.button("Refresh file list"):
     else:
         st.write("No files found.")
 
-
 st.header("Raw DataFrames:")
 
 tab1, tab2 = st.tabs(["Expression data", "Event data"])
 
 with tab1:
-
     # Selectbox for files
     filenames = fetch_file_list(subdir)
     if filenames:
@@ -73,17 +71,17 @@ with tab1:
             exp_df = load_exp_data(exp_file)
             if not exp_df.empty:
                 st.write(exp_df)
+                # Store in session state
+                st.session_state.exp_df = exp_df
             else:
                 st.write("No data available.")
 
 with tab2:
-
     if filenames:
         event_file = st.selectbox("Select Event file", filenames)
     else:
         st.write("No files available to select.")
 
-    # Function to load expression data
     def load_event_data(filename):
         try:
             response = requests.post("http://localhost:8000/load/load_event", json={"filename": filename})
@@ -101,6 +99,8 @@ with tab2:
             event_df = load_event_data(event_file)
             if not event_df.empty:
                 st.write(event_df)
+                # Store in session state
+                st.session_state.event_df = event_df
             else:
                 st.write("No data available.")
 
@@ -133,9 +133,13 @@ if sync:
         
         with st.expander("Show synced expression dataframe"):
             st.write(exp_df)
+            # Store in session state
+            st.session_state.exp_df = exp_df
         
         with st.expander("Show synced event dataframe"):
             st.write(event_df)
+            # Store in session state
+            st.session_state.event_df = event_df
     
     except requests.RequestException as e:
         st.error(f"Error fetching synced data: {e}")

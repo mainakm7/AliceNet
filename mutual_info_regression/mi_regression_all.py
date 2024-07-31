@@ -3,39 +3,28 @@ import numpy as np
 import pandas as pd
 from joblib import delayed, Parallel
 import os
-from ..utils.data_loader import sf_events_upd, sf_exp_upd
 from ..utils.data_dir_path import data_dir_path
 
-
-def mi_regression_all():
+def mi_regression_all(sf_exp_df, sf_events_df):
     """
     Perform mutual information regression for all combinations of genes and splicing events,
     save results to a CSV file.
-
-    Returns:
-        pd.DataFrame: DataFrame containing mutual information regression values.
     """
     
-    if sf_events_upd.empty or sf_exp_upd.empty:
+    if sf_events_df.empty or sf_exp_df.empty:
         raise ValueError("Input DataFrames are empty.")
     
     # Extract column and index names
-    cols = sf_events_upd.index
-    ind = sf_exp_upd.index
+    cols = sf_events_df.index
+    ind = sf_exp_df.index
 
     def compute_mutual_info(i, j):
         """
         Compute mutual information between a gene and a splicing event.
-
-        Args:
-            i (int): Index of the gene.
-            j (int): Index of the splicing event.
-
-        Returns:
-            float: Mutual information regression value.
         """
-        event = sf_events_upd.iloc[j, :].values
-        gene = sf_exp_upd.iloc[i, :].values
+        
+        event = sf_events_df.iloc[j, :].values
+        gene = sf_exp_df.iloc[i, :].values
 
         # Filter out NaNs
         mask = ~np.isnan(event)
@@ -49,12 +38,12 @@ def mi_regression_all():
     # Parallel computation
     results = Parallel(n_jobs=-1)(
         delayed(compute_mutual_info)(i, j)
-        for i in range(len(sf_exp_upd))
-        for j in range(len(sf_events_upd))
+        for i in range(len(sf_exp_df))
+        for j in range(len(sf_events_df))
     )
 
     # Reshape results into array
-    mi_reg_parallel = np.array(results).reshape(len(sf_exp_upd), len(sf_events_upd))
+    mi_reg_parallel = np.array(results).reshape(len(sf_exp_df), len(sf_events_df))
 
     # Convert to DataFrame
     mi_reg_df = pd.DataFrame(mi_reg_parallel, index=ind, columns=cols)

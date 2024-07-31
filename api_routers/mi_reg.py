@@ -1,26 +1,38 @@
 from fastapi import APIRouter, status, Path, Query, Depends, HTTPException
 from ..database import Database
 import requests
-from ..utils.data_loader import sf_events_upd, mi_raw_data, mi_melted_data
 from ..mutual_info_regression.mi_regression_all import mi_regression_all
 from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df
+from ..utils.data_loader import sf_events_upd,sf_exp_upd, mi_melted_data, mi_raw_data
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
+
+
+class DataFrameRequest(BaseModel):
+    sf_exp_df: Dict
+    sf_events_df: Dict
 
 def get_db():
     db = Database.get_db()
     return db
 
 
-@router.get("/compute_mi", status_code=status.HTTP_200_OK)
-def compute_mi_all():
+@router.post("/compute_mi", status_code=status.HTTP_200_OK)
+def compute_mi_all(request: DataFrameRequest):
     try:
-        mi_df = mi_regression_all()
+        # Convert dictionaries back to DataFrames
+        sf_exp_df = pd.DataFrame(request.sf_exp_df['data'], columns=request.sf_exp_df['columns'], index=request.sf_exp_df['index'])
+        sf_events_df = pd.DataFrame(request.sf_events_df['data'], columns=request.sf_events_df['columns'], index=request.sf_events_df['index'])
+        
+        mi_df = mi_regression_all(sf_exp_df, sf_events_df)
+        
         if mi_df is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MI data not computed.")
+        
         return {"raw_mi_data": mi_df.to_dict(orient="split")}
     except HTTPException as e:
         raise e
