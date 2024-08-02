@@ -134,12 +134,12 @@ if sync:
         with st.expander("Show synced expression dataframe"):
             st.write(exp_df)
             # Store in session state
-            st.session_state.exp_df = exp_df
+            st.session_state.exp_dict = exp_dict
         
         with st.expander("Show synced event dataframe"):
             st.write(event_df)
             # Store in session state
-            st.session_state.event_df = event_df
+            st.session_state.event_dict = event_dict
     
     except requests.RequestException as e:
         st.error(f"Error fetching synced data: {e}")

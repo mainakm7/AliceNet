@@ -34,23 +34,31 @@ class AllParams(BaseModel):
     specific_gene: Optional[str] = None
     event: Optional[str] = None
 
-@router.post("/event_gene_select", response_model=List[str], status_code=status.HTTP_200_OK)
-async def select_specific_splicedgene(sf_events_upd: pd.DataFrame) -> List[str]:
-    sf_events_df = sf_events_upd.copy()
+class DataFrameRequest(BaseModel):
+    sf_exp_df: Optional[Dict] = None
+    sf_events_df: Optional[Dict] = None
+    mi_raw_data: Optional[Dict] = None
+    mi_melted_data: Optional[Dict] = None
+
+@router.post("/event_gene_select", status_code=status.HTTP_200_OK)
+async def select_specific_splicedgene(request: DataFrameRequest):
+    sf_events_dict = request.sf_events_df
+    sf_events_df = pd.DataFrame(sf_events_dict["data"], columns=sf_events_dict["columns"], index=sf_events_dict["index"])
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
-@router.post("/specific_event_select/{gene}", response_model=List[str], status_code=status.HTTP_200_OK)
+@router.post("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
 async def select_specific_splicedevent(
-    sf_events_upd: pd.DataFrame,
+    request: DataFrameRequest,
     gene: str = Path(..., description="Events for specific gene")
-) -> List[str]:
-    sf_events_df = sf_events_upd.copy()
+):
+    sf_events_dict = request.sf_events_df
+    sf_events_df = pd.DataFrame(sf_events_dict["data"], columns=sf_events_dict["columns"], index=sf_events_dict["index"])
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
 
-@router.post("/data_prepare", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
-async def data_prepare(request: AllParams) -> Dict[str, Any]:
+@router.post("/data_prepare", status_code=status.HTTP_201_CREATED)
+async def data_prepare(request: AllParams):
     specific_gene = request.specific_gene
     event = request.event
     test_size = request.test_size
@@ -69,11 +77,11 @@ async def data_prepare(request: AllParams) -> Dict[str, Any]:
     except IndexError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.post("/hptuning", response_model=Dict[str, Union[Dict[str, Any], float]], status_code=status.HTTP_201_CREATED)
+@router.post("/hptuning", status_code=status.HTTP_201_CREATED)
 async def hp_tuning(
     hparams: Hyperparameters, 
     request: AllParams
-) -> Dict[str, Union[Dict[str, Any], float]]:
+):
     specific_gene = request.specific_gene
     event = request.event
     test_size = request.test_size
@@ -89,12 +97,12 @@ async def hp_tuning(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/xgboostnetfit", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post("/xgboostnetfit", status_code=status.HTTP_200_OK)
 async def xgboostnetfit(
     hparams: Hyperparameters, 
     request: AllParams, 
     db: Database = Depends(get_db)
-) -> Dict[str, Any]:
+):
     
     specific_gene = request.specific_gene
     event = request.event
@@ -139,11 +147,11 @@ async def xgboostnetfit(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/xgboostnetquery", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post("/xgboostnetquery", status_code=status.HTTP_200_OK)
 async def xgboostnetquery(
     request: AllParams, 
     db: Database = Depends(get_db)
-) -> Dict[str, Any]:
+):
     specific_gene = request.specific_gene
     event = request.event
     try:
@@ -157,8 +165,8 @@ async def xgboostnetquery(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/hcluster_elbow", response_model=List[float], status_code=status.HTTP_201_CREATED)
-async def hcluster_elbow_dist(request: AllParams) -> List[float]:
+@router.post("/hcluster_elbow", status_code=status.HTTP_201_CREATED)
+async def hcluster_elbow_dist(request: AllParams):
     specific_gene = request.specific_gene
     event = request.event
     try:
@@ -174,8 +182,8 @@ async def hcluster_elbow_dist(request: AllParams) -> List[float]:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
 
-@router.post("/hcluster", response_model=Dict[str, List[Any]], status_code=status.HTTP_201_CREATED)
-async def hcluster_adj_matrix(request: AllParams) -> Dict[str, List[Any]]:
+@router.post("/hcluster", status_code=status.HTTP_201_CREATED)
+async def hcluster_adj_matrix(request: AllParams):
     specific_gene = request.specific_gene
     event = request.event
     num_cluster = request.num_cluster
@@ -194,8 +202,8 @@ async def hcluster_adj_matrix(request: AllParams) -> Dict[str, List[Any]]:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
 
-@router.post("/scluster", response_model=Dict[str, List[Any]], status_code=status.HTTP_201_CREATED)
-async def scluster_adj_matrix(request: AllParams) -> Dict[str, List[Any]]:
+@router.post("/scluster", status_code=status.HTTP_201_CREATED)
+async def scluster_adj_matrix(request: AllParams):
     specific_gene = request.specific_gene
     event = request.event
     num_cluster = request.num_cluster

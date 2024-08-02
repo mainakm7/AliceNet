@@ -29,7 +29,7 @@ async def upload_data(file: UploadFile = File(...)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"File upload error: {e}")
 
 @router.get("/filenames", status_code=status.HTTP_200_OK)
-async def data_filenames(subdir: str = Query("raw")) -> List[str]:
+async def data_filenames(subdir: str = Query("raw")):
     data_path = data_dir_path(subdir=subdir)
     if not os.path.exists(data_path):
         raise HTTPException(
@@ -45,29 +45,25 @@ async def data_filenames(subdir: str = Query("raw")) -> List[str]:
     return files
 
 @router.post("/load_expression", status_code=status.HTTP_201_CREATED)
-async def load_expression_data(request: FilenameRequest) -> Dict[str, any]:
-    global sf_exp_upd
+async def load_expression_data(request: FilenameRequest):
     try:
         expression_df = await run_in_threadpool(load_raw_exp_data, request.filename)
-        sf_exp_upd = expression_df
         return expression_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Expression data load error: {e}")
 
 @router.post("/load_event", status_code=status.HTTP_201_CREATED)
-async def load_event_data(request: FilenameRequest) -> Dict[str, any]:
-    global sf_events_upd
+async def load_event_data(request: FilenameRequest):
     try:
         event_df = await run_in_threadpool(load_raw_event_data, request.filename)
         event_df = event_df.replace([np.inf, -np.inf], np.nan)  # Replace infinities with NaN
         event_df = event_df.fillna(-1)
-        sf_events_upd = event_df
         return event_df.to_dict(orient="split")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
 
 @router.get("/sync_data", status_code=status.HTTP_200_OK)
-async def intersect_raw_data() -> JSONResponse:
+async def intersect_raw_data():
     try:
         # Ensure sf_exp_upd and sf_events_upd are populated correctly before this call
         if sf_exp_upd is None or sf_events_upd is None:
@@ -98,7 +94,7 @@ async def intersect_raw_data() -> JSONResponse:
         )
 
 @router.post("/raw_mi", status_code=status.HTTP_201_CREATED)
-async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
+async def load_midata(request: FilenameRequest):
     try:
         mi_data = await run_in_threadpool(load_raw_mi_data, request.filename)
         return mi_data.to_dict(orient="split")
@@ -109,7 +105,7 @@ async def load_midata(request: FilenameRequest) -> Dict[str, Dict]:
         )
 
 @router.post("/load_melted_mi", status_code=status.HTTP_201_CREATED)
-async def load_meltedmidata(request: FilenameRequest) -> Dict[str, Dict]:
+async def load_meltedmidata(request: FilenameRequest):
     try:
         mi_data = await run_in_threadpool(load_melted_mi_data, request.filename)
         return mi_data.to_dict(orient="split")

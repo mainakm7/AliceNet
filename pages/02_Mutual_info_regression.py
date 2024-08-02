@@ -85,3 +85,32 @@ with st.expander("Raw MI Dataframe:"):
             st.write("No data available.")
     else:
         st.write("Select a valid MI file to display.")
+
+# Melt MI Dataframe
+st.header("Melt the dataframe:")
+
+def melt_raw_mi():
+    if "mi_df" in st.session_state:
+        mi_df = st.session_state.mi_df
+        mi_dict = mi_df.to_dict(orient="split")
+        try:
+            response = requests.post("http://localhost:8000/mi/melt_mi", json={"mi_raw_data": mi_dict})
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            mi_melted_dict = response.json()
+
+            mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
+            if not mi_melted_df.empty:
+                st.session_state.mi_melt_df = mi_melted_df
+                st.success("MI data melted successfully.")
+        except Exception as e:
+            st.error(f"Error in melting MI raw DataFrame: {str(e)}")
+    else:
+        st.error("No raw MI data available to melt.")
+
+melt_btn = st.button("Melt MI", type="primary", on_click=melt_raw_mi)
+
+with st.expander("Melted MI"):
+    if "mi_melt_df" in st.session_state:
+        st.write(st.session_state.mi_melt_df)
+    else:
+        st.write("No melted MI data available.")
