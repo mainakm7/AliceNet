@@ -8,6 +8,10 @@ from ..database import Database
 from ..mutual_info_regression.mi_regression_all import mi_regression_all
 from ..mutual_info_regression.mi_matrix_melt import mi_melt_from_df
 from ..utils.data_loader import sf_events_upd, sf_exp_upd, mi_melted_data, mi_raw_data
+import logging
+
+
+logging.basicConfig(level=logging.INFO, filename="mi_reg.log", filemode="w")
 
 router = APIRouter(prefix="/mi", tags=["MI_regression"])
 
@@ -22,7 +26,7 @@ def get_db():
     return db
 
 @router.post("/compute_mi", status_code=status.HTTP_201_CREATED)
-async def compute_mi_all(request: DataFrameRequest) -> Dict[str, Any]:
+async def compute_mi_all(request: DataFrameRequest):
     try:
         # Convert dictionaries back to DataFrames
         sf_exp_df = pd.DataFrame(request.sf_exp_df['data'], columns=request.sf_exp_df['columns'], index=request.sf_exp_df['index'])
@@ -43,7 +47,7 @@ async def compute_mi_all(request: DataFrameRequest) -> Dict[str, Any]:
         )
 
 @router.post("/melt_mi", status_code=status.HTTP_201_CREATED)
-async def melt_midata(request: DataFrameRequest) -> Dict[str, Dict]:
+async def melt_midata(request: DataFrameRequest):
     try:
         mi_raw_data = request.mi_raw_data
         if mi_raw_data is None:
@@ -51,19 +55,23 @@ async def melt_midata(request: DataFrameRequest) -> Dict[str, Dict]:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Raw MI data not found."
             )
+
         mi_raw_df = pd.DataFrame(mi_raw_data["data"], columns=mi_raw_data["columns"], index=mi_raw_data["index"])
         mi_data_melted = await run_in_threadpool(mi_melt_from_df, mi_raw_df)
-        return {"melted_mi_data": mi_data_melted.to_dict(orient="split")}
+
+        return mi_data_melted.to_dict(orient="split")
     except HTTPException as e:
         raise e
     except Exception as e:
+        logging.error(f"Error in melting MI data: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Error occurred: {str(e)}"
         )
 
+
 @router.post("/melted_mi_data_to_db", status_code=status.HTTP_201_CREATED)
-async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db)) -> Dict[str, str]:
+async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db)):
     try:
         mi_melted_data = request.mi_melted_data
         if mi_melted_data is None:
@@ -89,13 +97,13 @@ async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db
         )
 
 @router.get("/event_gene_select", status_code=status.HTTP_200_OK)
-async def select_specific_splicedgene() -> List[str]:
+async def select_specific_splicedgene():
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
 @router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
-async def select_specific_splicedevent(gene: str = Path(..., description="Gene to filter")) -> List[str]:
+async def select_specific_splicedevent(gene: str = Path(..., description="Gene to filter")):
     sf_events_df = sf_events_upd.copy()
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
@@ -105,7 +113,7 @@ async def mi_gene_events_query(
     gene: str = Path(..., description="Gene to query"),
     event: Optional[str] = Query(None, description="Splicing event to filter"),
     db: Database = Depends(get_db)
-) -> List[Dict[str, Any]]:
+):
     # Fetch available genes and events
     genes = await select_specific_splicedgene()
     events = await select_specific_splicedevent(gene)

@@ -10,11 +10,16 @@ import os
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 import numpy as np
+import pandas as pd
 
 router = APIRouter(prefix="/load", tags=["Load data"])
 
 class FilenameRequest(BaseModel):
     filename: str
+
+class DataFrameRequest(BaseModel):
+    sf_exp_df: Optional[Dict] = None
+    sf_events_df: Optional[Dict] = None
 
 @router.post("/upload_data", status_code=status.HTTP_201_CREATED)
 async def upload_data(file: UploadFile = File(...)):
@@ -62,24 +67,26 @@ async def load_event_data(request: FilenameRequest):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Splicing PSI data load error: {e}")
 
-@router.get("/sync_data", status_code=status.HTTP_200_OK)
-async def intersect_raw_data():
+@router.post("/sync_data", status_code=status.HTTP_201_CREATED)
+async def intersect_raw_data(request: DataFrameRequest):
     try:
-        # Ensure sf_exp_upd and sf_events_upd are populated correctly before this call
-        if sf_exp_upd is None or sf_events_upd is None:
+                
+        sf_exp_df = pd.DataFrame(request.sf_exp_df['data'], columns=request.sf_exp_df['columns'], index=request.sf_exp_df['index'])
+        sf_events_df = pd.DataFrame(request.sf_events_df['data'], columns=request.sf_events_df['columns'], index=request.sf_events_df['index'])
+        
+        if sf_exp_df is None or sf_events_df is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Expression or event data not found."
             )
 
-        # Copy the DataFrames
-        sf_exp_df = sf_exp_upd.copy()
-        sf_events_df = sf_events_upd.copy()
+        
         
         # Perform intersection
         sf_exp_df, sf_events_df = await run_in_threadpool(intersect_exp_event, sf_exp_df, sf_events_df)
         
         # Replace infinities with NaN and fill NaN with -1
+        sf_exp_df = sf_exp_df.replace([np.inf, -np.inf], np.nan).fillna(-1)
         sf_events_df = sf_events_df.replace([np.inf, -np.inf], np.nan).fillna(-1)
         
         # Convert DataFrames to dictionary and send as JSON response

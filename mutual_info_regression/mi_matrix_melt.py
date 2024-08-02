@@ -18,11 +18,18 @@ def mi_melt_from_df(mi_tot_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame: The melted mutual information dataframe.
     """
-        
+    
+    sevents = mi_tot_df.columns
+    sfactors = mi_tot_df.index
+    
+    mi_mat = mi_tot_df.values.T
+    mitot_df2 = pd.DataFrame(mi_mat,columns=sfactors)
+    mitot_df2['Splicing events'] = sevents
+    
     # Melt the dataframe
-    melted_mitot_df = pd.melt(mi_tot_df,
+    melted_mitot_df = pd.melt(mitot_df2,
                               id_vars='Splicing events',
-                              value_vars=mi_tot_df.index,
+                              value_vars=sfactors,
                               var_name="Splicing factors",
                               value_name="MI-value")
     
