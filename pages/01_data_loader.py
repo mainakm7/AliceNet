@@ -63,7 +63,7 @@ with tab1:
                     exp_df = load_exp_data(exp_file)
                     if not exp_df.empty:
                         st.write(exp_df)
-                        st.session_state.exp_df = exp_df.to_dict(orient="split")
+                        st.session_state._temp_exp_dict = exp_df.to_dict(orient="split")
                     else:
                         st.write("No data available.")
     else:
@@ -89,13 +89,13 @@ with tab2:
                     event_df = load_event_data(event_file)
                     if not event_df.empty:
                         st.write(event_df)
-                        st.session_state.event_df = event_df.to_dict(orient="split")
+                        st.session_state._temp_event_dict = event_df.to_dict(orient="split")
                     else:
                         st.write("No data available.")
     else:
         st.write("No files available to select.")
 
-st.header("Sync Patients for expression and event dataframes:")
+st.header("Sync Patients for Expression and Event DataFrames:")
 
 def sync_data(exp_df, event_df):
     try:
@@ -117,11 +117,9 @@ def sync_data(exp_df, event_df):
         st.error(f"Unexpected error: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-sync = st.button("Sync", type="primary")
-
-if sync:
-    if 'exp_df' in st.session_state and 'event_df' in st.session_state:
-        exp_df, event_df = sync_data(st.session_state.exp_df, st.session_state.event_df)
+if st.button("Sync", type="primary"):
+    if '_temp_exp_dict' in st.session_state and '_temp_event_dict' in st.session_state:
+        exp_df, event_df = sync_data(st.session_state._temp_exp_dict, st.session_state._temp_event_dict)
         
         # Create tabs after syncing
         tab1, tab2 = st.tabs(["Expression data", "Event data"])
@@ -129,11 +127,11 @@ if sync:
         with tab1:
             with st.expander("Show synced expression dataframe"):
                 st.write(exp_df)
-                st.session_state.exp_df = exp_df.to_dict(orient="split")
+                st.session_state.exp_dict = exp_df.to_dict(orient="split")
         
         with tab2:
             with st.expander("Show synced event dataframe"):
                 st.write(event_df)
-                st.session_state.event_df = event_df.to_dict(orient="split")
+                st.session_state.event_dict = event_df.to_dict(orient="split")
     else:
         st.error("Expression or event data not available to sync.")

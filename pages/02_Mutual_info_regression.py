@@ -3,9 +3,9 @@ import pandas as pd
 import requests
 
 # Ensure DataFrames are available in session_state
-if "exp_df" in st.session_state and "event_df" in st.session_state:
-    exp_df = st.session_state.exp_df
-    event_df = st.session_state.event_df
+if st.session_state.exp_dict is not None and st.session_state.event_dict is not None:
+    exp_df = st.session_state.exp_dict
+    event_df = st.session_state.event_dict
 
     # Compute MI Section
     st.header("Compute MI:")
@@ -21,7 +21,7 @@ if "exp_df" in st.session_state and "event_df" in st.session_state:
             mi_df = pd.DataFrame(mi_dict["data"], columns=mi_dict["columns"], index=mi_dict["index"])
             
             # Write mi_df to session_state
-            st.session_state.mi_df = mi_dict
+            st.session_state._temp_mi_dict = mi_dict
             
             with st.expander("Raw MI Dataframe:"):
                 st.write(mi_df)
@@ -29,6 +29,7 @@ if "exp_df" in st.session_state and "event_df" in st.session_state:
             st.error(f"Error fetching MI data: {e}")
 else:
     st.write("Expression and event dataframes are not available. First load them!")
+
 
 # Subdirectory Input
 subdir = st.text_input("Enter subdirectory", value="MI")
@@ -58,13 +59,13 @@ def load_mi_data(filename):
         response = requests.post("http://localhost:8000/load/raw_mi", json={"filename": filename})
         response.raise_for_status()
         mi_dict = response.json()
-        st.session_state.mi_df = mi_dict
+        return mi_dict
     except requests.RequestException as e:
         st.error(f"Error loading MI data: {str(e)}")
 
 def melt_raw_mi():
     if "mi_df" in st.session_state:
-        mi_dict = st.session_state.mi_df
+        mi_dict = st.session_state._temp_mi_dict
         try:
             response = requests.post("http://localhost:8000/mi/melt_mi", json={"mi_raw_data": mi_dict})
             response.raise_for_status()
@@ -89,16 +90,16 @@ load_btn = st.button("Load MI Data", type="primary")
 if load_btn:
     with st.expander("Raw MI Dataframe:"):
         if MI_file and MI_file != "No files available":
-            load_mi_data(MI_file)
-            if "mi_df" in st.session_state:
-                mi_dict = st.session_state.mi_df
-                mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
-                if not mi_df.empty:
-                    st.write(mi_df)
-                    melt_raw_mi()
-                else:
-                    st.write("No data available.")
+            mi_dict = load_mi_data(MI_file)
+            st.session_state._temp_mi_dict = mi_dict
+            mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
+            if not mi_df.empty:
+                st.write(mi_df)
+                melt_raw_mi()
             else:
-                st.write("Error loading MI data.")
+                st.write("No data available.")
+            
         else:
             st.write("Select a valid MI file to display.")
+
+st.session_state.mi_dict = st.session_state._temp_mi_dict
