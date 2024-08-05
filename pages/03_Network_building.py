@@ -6,6 +6,18 @@ import requests
 if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
     st.error("Expression and event data not found. Please load them first.")
 else:
+    # Initialize session state variables if not already set
+    if 'gene' not in st.session_state:
+        st.session_state.gene = None
+    if 'specific_event' not in st.session_state:
+        st.session_state.specific_event = None
+    if '_temp_gene' not in st.session_state:
+        st.session_state._temp_gene = None
+    if '_temp_specific_event' not in st.session_state:
+        st.session_state._temp_specific_event = None
+    if '_test_size' not in st.session_state:
+        st.session_state._test_size = 0.3
+
     exp_dict = st.session_state.exp_dict
     event_dict = st.session_state.event_dict
 
@@ -40,7 +52,7 @@ else:
     st.subheader("Data Preparation")
 
     st.text("Choose a split ratio for train and test dataset")
-    test_size = st.slider("Test Size", min_value=0.0, max_value=1.0, step=0.1, value=0.3)
+    test_size = st.slider("Test Size", min_value=0.0, max_value=1.0, step=0.1, value=st.session_state._test_size)
     st.session_state._test_size = test_size
 
     if st.button("Data Preparation"):
