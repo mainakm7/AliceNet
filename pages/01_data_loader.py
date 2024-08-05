@@ -95,8 +95,6 @@ with tab2:
     else:
         st.write("No files available to select.")
 
-st.header("Sync Patients for Expression and Event DataFrames:")
-
 def sync_data(exp_df, event_df):
     try:
         response = requests.post("http://localhost:8000/load/sync_data", json={"sf_exp_df": exp_df, "sf_events_df": event_df})
@@ -117,7 +115,7 @@ def sync_data(exp_df, event_df):
         st.error(f"Unexpected error: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-if st.button("Sync", type="primary"):
+if st.checkbox("Sync the patients of expression and event DataFrames"):
     if '_temp_exp_dict' in st.session_state and '_temp_event_dict' in st.session_state:
         exp_df, event_df = sync_data(st.session_state._temp_exp_dict, st.session_state._temp_event_dict)
         

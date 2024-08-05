@@ -82,9 +82,12 @@ def melt_raw_mi(mi_dict):
 filenames = fetch_file_list(subdir)
 MI_file = st.selectbox("Select raw MI file", filenames if filenames else ["No files available"])
 
+
+melt_check = st.checkbox("Melt DataFrame after loading")
+
 # Load Button for MI Data
 load_btn = st.button("Load MI Data", type="primary")
-melt_check = st.checkbox("Melt DataFrame after loading")
+
 if load_btn:
     with st.expander("Raw MI Dataframe:"):
         if MI_file and MI_file != "No files available":
