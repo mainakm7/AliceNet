@@ -30,6 +30,7 @@ if 'exp_dict' in st.session_state and 'event_dict' in st.session_state:
 else:
     st.write("Expression and event dataframes are not available. First load them!")
 
+st.divider()
 # Subdirectory Input
 subdir = st.text_input("Enter subdirectory", value="MI")
 
@@ -50,6 +51,7 @@ if st.button("Refresh file list"):
     else:
         st.write("No files found.")
 
+st.divider()
 # Load MI Data Section
 st.header("Load raw MI value from file")
 
@@ -109,3 +111,4 @@ if load_btn:
 # Ensure session_state variables are updated
 st.session_state.mi_dict = st.session_state.get('_temp_mi_dict', {})
 st.session_state.mi_melted_dict = st.session_state.get('_temp_mi_melted_dict', {})
+st.divider()

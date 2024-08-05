@@ -19,6 +19,8 @@ if uploaded_file is not None:
     else:
         st.error(f"Error uploading file: {response.text}")
 
+
+st.divider()
 st.header("List of uploaded files")
 
 subdir = st.text_input("Enter subdirectory", value="raw")
@@ -39,6 +41,7 @@ if st.button("Refresh file list"):
     else:
         st.write("No files found.")
 
+st.divider()
 st.header("Raw DataFrames:")
 
 tab1, tab2 = st.tabs(["Expression data", "Event data"])
@@ -133,3 +136,5 @@ if st.checkbox("Sync the patients of expression and event DataFrames"):
                 st.session_state.event_dict = event_df.to_dict(orient="split")
     else:
         st.error("Expression or event data not available to sync.")
+
+st.divider()

@@ -17,6 +17,13 @@ router = APIRouter(prefix="/network", tags=["Network"])
 def get_db() -> Database:
     return Database.get_db()
 
+
+class DataPrepare(BaseModel):
+    train_X: Dict
+    train_y: Dict
+    test_X: Dict
+    test_y: Dict
+    
 class Hyperparameters(BaseModel):
     n_estimators: Optional[Tuple[int, int]] = (50, 200)
     max_depth: Optional[Tuple[int, int]] = (3, 9)
@@ -79,16 +86,16 @@ async def data_prepare(request: AllParams):
 
 @router.post("/hptuning", status_code=status.HTTP_201_CREATED)
 async def hp_tuning(
-    hparams: Hyperparameters, 
-    request: AllParams
+    data: DataPrepare,
+    hparams: Hyperparameters
 ):
-    specific_gene = request.specific_gene
-    event = request.event
-    test_size = request.test_size
+    
     try:
-        train_X, train_y, test_X, test_y = await run_in_threadpool(
-            data_preparation, specific_gene=specific_gene, event=event, test_size=test_size
-        )
+        
+        train_X = data.train_X
+        train_y = data.train_y
+        test_X = data.test_X
+        test_y = data.test_y
         
         best_params, best_value = await run_in_threadpool(
             hyperparameter_tuning, train_X, train_y, test_X, test_y, **hparams.model_dump()
