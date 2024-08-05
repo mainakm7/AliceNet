@@ -138,3 +138,4 @@ if st.checkbox("Sync the patients of expression and event DataFrames"):
         st.error("Expression or event data not available to sync.")
 
 st.divider()
+
