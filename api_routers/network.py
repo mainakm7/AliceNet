@@ -47,14 +47,14 @@ class DataFrameRequest(BaseModel):
     mi_raw_data: Optional[Dict] = None
     mi_melted_data: Optional[Dict] = None
 
-@router.post("/event_gene_select", status_code=status.HTTP_200_OK)
+@router.post("/event_gene_select", status_code=status.HTTP_201_CREATED)
 async def select_specific_splicedgene(request: DataFrameRequest):
     sf_events_dict = request.sf_events_df
     sf_events_df = pd.DataFrame(sf_events_dict["data"], columns=sf_events_dict["columns"], index=sf_events_dict["index"])
     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
     return list(np.unique(sf_events_df["gene"]))
 
-@router.post("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
+@router.post("/specific_event_select/{gene}", status_code=status.HTTP_201_CREATED)
 async def select_specific_splicedevent(
     request: DataFrameRequest,
     gene: str = Path(..., description="Events for specific gene")
@@ -104,7 +104,7 @@ async def hp_tuning(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/xgboostnetfit", status_code=status.HTTP_200_OK)
+@router.post("/xgboostnetfit", status_code=status.HTTP_201_CREATED)
 async def xgboostnetfit(
     hparams: Hyperparameters, 
     request: AllParams, 
@@ -154,7 +154,7 @@ async def xgboostnetfit(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
-@router.post("/xgboostnetquery", status_code=status.HTTP_200_OK)
+@router.post("/xgboostnetquery", status_code=status.HTTP_201_CREATED)
 async def xgboostnetquery(
     request: AllParams, 
     db: Database = Depends(get_db)

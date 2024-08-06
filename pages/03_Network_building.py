@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# Ensure DataFrames are available in session_state
+
 if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
     st.error("Expression and event data not found. Please load them first.")
 else:
-    # Initialize session state variables if not already set
+    
     if 'gene' not in st.session_state:
         st.session_state.gene = None
     if 'specific_event' not in st.session_state:
@@ -26,7 +26,7 @@ else:
     st.subheader("Choose Gene and Specific Splicing Event")
     gene_response = requests.post("http://localhost:8000/network/event_gene_select", json={"sf_events_df": event_dict})
 
-    if gene_response.status_code == 200:
+    if gene_response.status_code == 201:
         gene_list = gene_response.json()
         gene = st.selectbox("Select specific gene for network", gene_list)
 
@@ -34,7 +34,7 @@ else:
             st.session_state._temp_gene = gene
 
             event_response = requests.post(f"http://localhost:8000/network/specific_event_select/{st.session_state._temp_gene}", json={"sf_events_df": event_dict})
-            if event_response.status_code == 200:
+            if event_response.status_code == 201:
                 event_list = event_response.json()
                 specific_event = st.selectbox("Select specific event for the chosen gene", event_list)
 
