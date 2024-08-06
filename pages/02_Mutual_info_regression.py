@@ -3,7 +3,14 @@ import pandas as pd
 import requests
 
 # Ensure DataFrames are available in session_state
-if 'exp_dict' in st.session_state and 'event_dict' in st.session_state:
+if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
+    st.error("Expression and event data not found. Please load them first.")
+else:
+    if '_temp_mi_melted_dict' not in st.session_state:
+        st.session_state._temp_mi_melted_dict = None
+    if '_temp_mi_dict' not in st.session_state:
+        st.session_state._temp_mi_dict = None
+        
     exp_df = st.session_state.exp_dict
     event_df = st.session_state.event_dict
 
@@ -23,12 +30,15 @@ if 'exp_dict' in st.session_state and 'event_dict' in st.session_state:
             # Write mi_df to session_state
             st.session_state._temp_mi_dict = mi_dict
 
-            with st.expander("Raw MI Dataframe:"):
-                st.write(mi_df)
+            st.write("Computed MI Data:")
+            st.write(mi_df)
+            
+            # Debug print
+            st.write("Computed and stored MI data in session_state._temp_mi_dict:")
+            st.write(st.session_state._temp_mi_dict)
+            
         except requests.RequestException as e:
             st.error(f"Error fetching MI data: {e}")
-else:
-    st.write("Expression and event dataframes are not available. First load them!")
 
 st.divider()
 # Subdirectory Input
@@ -84,32 +94,41 @@ def melt_raw_mi(mi_dict):
 filenames = fetch_file_list(subdir)
 MI_file = st.selectbox("Select raw MI file", filenames if filenames else ["No files available"])
 
-
 melt_check = st.checkbox("Melt DataFrame after loading")
 
 # Load Button for MI Data
 load_btn = st.button("Load MI Data", type="primary")
 
 if load_btn:
-    with st.expander("Raw MI Dataframe:"):
-        if MI_file and MI_file != "No files available":
-            mi_dict = load_mi_data(MI_file)
-            st.session_state._temp_mi_dict = mi_dict
-            mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
-            if not mi_df.empty:
-                st.write(mi_df)
-                if '_temp_mi_dict' in st.session_state and melt_check:
-                    mi_melted_dict = melt_raw_mi(st.session_state._temp_mi_dict)
-                    st.session_state._temp_mi_melted_dict = mi_melted_dict
-                else:
-                    st.error("No MI dataframe to melt")
+    if MI_file and MI_file != "No files available":
+        mi_dict = load_mi_data(MI_file)
+        st.session_state._temp_mi_dict = mi_dict
+        
+        
+        mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
+        if not mi_df.empty:
+            st.write("Raw MI Data:")
+            st.write(mi_df)
+            if '_temp_mi_dict' in st.session_state and melt_check:
+                mi_melted_dict = melt_raw_mi(st.session_state._temp_mi_dict)
+                st.session_state._temp_mi_melted_dict = mi_melted_dict
+                
+                
+                
+                if mi_melted_dict:
+                    st.success("Melted MI data has been saved.")
+                    
             else:
-                st.write("No data available.")
+                st.warning("No MI dataframe to melt or melting not requested.")
         else:
-            st.write("Select a valid MI file to display.")
+            st.warning("Loaded MI data is empty.")
+    else:
+        st.warning("Select a valid MI file to display.")
 
 # Ensure session_state variables are updated
 st.session_state.mi_dict = st.session_state.get('_temp_mi_dict', {})
 st.session_state.mi_melted_dict = st.session_state.get('_temp_mi_melted_dict', {})
-st.divider()
 
+
+
+st.divider()

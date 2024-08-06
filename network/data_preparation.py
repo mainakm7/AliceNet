@@ -39,17 +39,24 @@ def data_preparation(
             lambda x: dict(zip(x["Splicing factors"], x["MI-value"]))
         ).reset_index(name="adj_list").set_index("Splicing events")
     
-    def prepare_individual_dataset(X_df: pd.DataFrame, y_df: pd.Series, adj_df_mi: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, list]:
-        """Prepare individual dataset for a specific splicing event."""
+    def prepare_individual_dataset(X_df,y_df):
+        
         sf_dict = adj_df_mi.loc[y_df.name]['adj_list']
-        keys_list, values_list = list(sf_dict.keys()), list(sf_dict.values())
-        X_df_filtered = X_df[keys_list] * values_list
-        y_df_filtered = y_df.dropna()
-        pat_list = list(np.intersect1d(X_df_filtered.index, y_df_filtered.index))
-        if len(pat_list) == 0:
-            raise ValueError("No overlapping samples found between features and labels.")
-        ix = np.random.choice(pat_list, size=min(len(pat_list), 100), replace=False)  # Ensure `ix` does not exceed `pat_list` length
-        return X_df_filtered.loc[ix], y_df_filtered.loc[ix], pat_list
+
+            
+        keys_list = list(sf_dict.keys())
+        values_list = list(sf_dict.values())
+
+        X_df = X_df[keys_list] * values_list
+        y_df = y_df.dropna()
+        pat_list = list(np.intersect1d(X_df.index,y_df.index))
+        X_df = X_df.loc[pat_list]
+        y_df = y_df.loc[pat_list]
+        samples = X_df.shape[0]
+        ix = np.random.choice(samples, size= (min(na_list),), replace=False)
+        X_df = X_df.iloc[ix]
+        y_df = y_df.iloc[ix]
+        return X_df, y_df, pat_list
     
     # Aggregate mutual information into adjacency list per splicing event
     adj_df_mi = prepare_adjacency_list(mi_melted_df)
@@ -59,9 +66,15 @@ def data_preparation(
     sf_exp_df = sf_exp_upd.T
 
     sf_events_df_individual = sf_events_df.loc[event]
+    
+    na_list = []
+    for row in sf_events_df.index:
+        series = sf_events_df.loc[row]
+        series = series.dropna()
+        na_list.append(series.shape[0])
 
     # Prepare individual dataset
-    Xdata, ydata, pat_list = prepare_individual_dataset(sf_exp_df, sf_events_df_individual, adj_df_mi)
+    Xdata, ydata, pat_list = prepare_individual_dataset(sf_exp_df, sf_events_df_individual)
 
     # Split data into training and testing sets
     train_X, test_X, train_y, test_y = train_test_split(Xdata, ydata, test_size=test_size, random_state=42)
