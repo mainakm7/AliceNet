@@ -11,6 +11,9 @@ from ..database import Database
 import pickle
 import pandas as pd
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO, filename="network.log", filemode="w")
 
 router = APIRouter(prefix="/network", tags=["Network"])
 
@@ -18,11 +21,6 @@ def get_db() -> Database:
     return Database.get_db()
 
 
-class DataPrepare(BaseModel):
-    train_X: Dict
-    train_y: Dict
-    test_X: Dict
-    test_y: Dict
     
 class Hyperparameters(BaseModel):
     n_estimators: Optional[Tuple[int, int]] = (50, 200)
@@ -39,7 +37,7 @@ class AllParams(BaseModel):
     test_size: Optional[float] = 0.3
     num_cluster: Optional[int] = 10
     specific_gene: Optional[str] = None
-    event: Optional[str] = None
+    eventname: Optional[str] = None
 
 class DataFrameRequest(BaseModel):
     sf_exp_df: Optional[Dict] = None
@@ -81,9 +79,9 @@ async def data_prepare(request: AllParams, datareq: DataFrameRequest):
             mi_melted_df=mi_melted_df, sf_exp_upd=sf_exp_df, sf_events_upd=sf_event_df
         )
         return {
-            "train_X": train_X.to_dict(),
+            "train_X": train_X.to_dict(orient="split"),
             "train_y": train_y.to_dict(),
-            "test_X": test_X.to_dict(),
+            "test_X": test_X.to_dict(orient="split"),
             "test_y": test_y.to_dict()
         }
     except ValueError as e:
@@ -92,24 +90,41 @@ async def data_prepare(request: AllParams, datareq: DataFrameRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.post("/hptuning", status_code=status.HTTP_201_CREATED)
-async def hp_tuning(
-    data: DataPrepare,
-    hparams: Hyperparameters
-):
+async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyperparameters):
+    
+    eventname = paramreq.eventname
+    test_size = paramreq.test_size
+    mi_melted_dict = datareq.mi_melted_data
+    sf_exp_dict = datareq.sf_exp_df
+    sf_event_dict = datareq.sf_events_df
+    
+    mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
+    sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
+    sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
+    try:
+        train_X, train_y, test_X, test_y = await run_in_threadpool(
+            data_preparation, event=eventname, test_size=test_size, 
+            mi_melted_df=mi_melted_df, sf_exp_upd=sf_exp_df, sf_events_upd=sf_event_df
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except IndexError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+       raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during Data preparation: {e}")
+    
     
     try:
-        
-        train_X = data.train_X
-        train_y = data.train_y
-        test_X = data.test_X
-        test_y = data.test_y
-        
+        # Perform hyperparameter tuning
         best_params, best_value = await run_in_threadpool(
             hyperparameter_tuning, train_X, train_y, test_X, test_y, **hparams.model_dump()
         )
         return {"best_params": best_params, "best_value": best_value}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+        logging.error(f"Error in hyperparameter optimization: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during Hyperparameter tuning: {e}")
+
+
 
 @router.post("/xgboostnetfit", status_code=status.HTTP_201_CREATED)
 async def xgboostnetfit(
@@ -126,19 +141,19 @@ async def xgboostnetfit(
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, specific_gene=specific_gene, event=event, test_size=test_size
         )
-        data_dict = {
+        alldata = {
             "train_X": train_X,
             "train_y": train_y,
             "test_X": test_X,
             "test_y": test_y        
         }
         best_params, best_value = await run_in_threadpool(
-            hyperparameter_tuning, **data_dict, **hparams.model_dump()
+            hyperparameter_tuning, **alldata, **hparams.model_dump()
         )
         
         
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(
-            xgboostnet, data_dict, best_params, dataparams=request.model_dump()
+            xgboostnet, alldata, best_params, dataparams=request.model_dump()
         )
 
         
