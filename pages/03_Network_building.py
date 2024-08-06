@@ -1,12 +1,10 @@
 import streamlit as st
-import pandas as pd
 import requests
-
 
 if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
     st.error("Expression and event data not found. Please load them first.")
 else:
-    
+    # Initialize session state variables
     if 'gene' not in st.session_state:
         st.session_state.gene = None
     if 'specific_event' not in st.session_state:
@@ -24,6 +22,7 @@ else:
     st.header("XGBoost Network")
 
     st.subheader("Choose Gene and Specific Splicing Event")
+
     gene_response = requests.post("http://localhost:8000/network/event_gene_select", json={"sf_events_df": event_dict})
 
     if gene_response.status_code == 201:
@@ -32,20 +31,19 @@ else:
 
         if st.button("Select Gene"):
             st.session_state._temp_gene = gene
+            st.session_state.gene = gene
 
-            event_response = requests.post(f"http://localhost:8000/network/specific_event_select/{st.session_state._temp_gene}", json={"sf_events_df": event_dict})
-            if event_response.status_code == 201:
-                event_list = event_response.json()
-                specific_event = st.selectbox("Select specific event for the chosen gene", event_list)
+    if st.session_state._temp_gene:
+        event_response = requests.post(f"http://localhost:8000/network/specific_event_select/{st.session_state._temp_gene}", json={"sf_events_df": event_dict})
+        if event_response.status_code == 201:
+            event_list = event_response.json()
+            specific_event = st.selectbox("Select specific event for the chosen gene", event_list)
 
-                if st.button("Select Specific Event"):
-                    st.session_state._temp_specific_event = specific_event
-                    st.session_state.gene = st.session_state._temp_gene
-                    st.session_state.specific_event = st.session_state._temp_specific_event
-            else:
-                st.error(f"Error fetching specific events: {event_response.text}")
-    else:
-        st.error(f"Error fetching gene list: {gene_response.text}")
+            if st.button("Select Specific Event"):
+                st.session_state._temp_specific_event = specific_event
+                st.session_state.specific_event = specific_event
+        else:
+            st.error(f"Error fetching specific events: {event_response.text}")
 
     st.divider()
 
@@ -56,16 +54,31 @@ else:
     st.session_state._test_size = test_size
 
     if st.button("Data Preparation"):
-        try:
-            data_response = requests.post("http://localhost:8000/network/data_prepare", 
-                                          json={"specific_gene": st.session_state.gene, "event": st.session_state.specific_event, "test_size": st.session_state._test_size})
-            if data_response.status_code == 201:
-                st.success("Data prepared successfully.")
-                st.session_state.data_dict = data_response.json()
-            else:
-                st.error(f"Error in preparing data: {data_response.text}")
-        except Exception as e:
-            st.error(f"Error in preparing data: {e}")
+        if st.session_state.specific_event:
+            try:
+                data_response = requests.post(
+                    "http://localhost:8000/network/data_prepare", 
+                    json={
+                        "request": { 
+                            "event": st.session_state.specific_event, 
+                            "test_size": st.session_state._test_size
+                        },
+                        "datareq": {
+                            "mi_melted_data": st.session_state.mi_melted_dict, 
+                            "sf_exp_df": st.session_state.exp_dict,
+                            "sf_events_df": st.session_state.event_dict
+                        }
+                    }
+                )
+                if data_response.status_code == 201:
+                    st.success("Data prepared successfully.")
+                    st.session_state.data_dict = data_response.json()
+                else:
+                    st.error(f"Error in preparing data: {data_response.text}")
+            except Exception as e:
+                st.error(f"Error in preparing data: {e}")
+        else:
+            st.error("Please select both a gene and a specific event before preparing data.")
 
     st.divider()
 

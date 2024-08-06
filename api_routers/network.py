@@ -65,13 +65,20 @@ async def select_specific_splicedevent(
     return list(sf_events_df[sf_events_df["gene"] == gene].index)
 
 @router.post("/data_prepare", status_code=status.HTTP_201_CREATED)
-async def data_prepare(request: AllParams):
-    specific_gene = request.specific_gene
+async def data_prepare(request: AllParams, datareq: DataFrameRequest):
     event = request.event
     test_size = request.test_size
+    mi_melted_dict = datareq.mi_melted_data
+    sf_exp_dict = datareq.sf_exp_df
+    sf_event_dict = datareq.sf_events_df
+    
+    mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
+    sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
+    sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
-            data_preparation, specific_gene=specific_gene, event=event, test_size=test_size
+            data_preparation, event=event, test_size=test_size, 
+            mi_melted_df=mi_melted_df, sf_exp_upd=sf_exp_df, sf_events_upd=sf_event_df
         )
         return {
             "train_X": train_X.to_dict(),
