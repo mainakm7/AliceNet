@@ -4,6 +4,8 @@ import requests
 # Check if session state variables exist
 if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
     st.error("Expression and event data not found. Please load them first.")
+elif 'mi_dict' not in st.session_state or 'mi_melted_dict' not in st.session_state:
+    st.error("MI data data not found. Please load them first.")
 else:
     # Initialize session state variables
     if 'gene' not in st.session_state:
@@ -52,106 +54,102 @@ else:
 
     st.divider()
 
-    st.subheader("Data Preparation")
+    st.subheader("Data Preparation and Hyperparameter tuning")
 
     st.text("Choose a split ratio for train and test dataset")
     test_size = st.slider("Test Size", min_value=0.0, max_value=1.0, step=0.1, value=st.session_state._test_size)
     st.session_state._test_size = test_size
 
-    if st.button("Data Preparation and Hyperparameter tuning"):
-        if st.session_state.specific_event:
-            try:
-                data_response = requests.post(
-                    "http://localhost:8000/network/data_prepare",
-                    json={
-                        "paramreq": {
-                            "eventname": st.session_state.specific_event,
-                            "test_size": st.session_state._test_size
-                        },
-                        "datareq": {
-                            "mi_melted_data": st.session_state.mi_melted_dict,
-                            "sf_exp_df": st.session_state.exp_dict,
-                            "sf_events_df": st.session_state.event_dict
-                        }
-                    }
-                )
-                if data_response.status_code == 201:
-                    st.success("Data prepared successfully.")
-                    st.session_state.data_dict = data_response.json()
-                else:
-                    st.error(f"Error in preparing data: {data_response.text}")
-            except Exception as e:
-                st.error(f"Error in preparing data: {e}")
-        else:
-            st.error("Please select both a gene and a specific event before preparing data.")
+    # if st.button("Data Preparation and Hyperparameter tuning"):
+    #     if st.session_state.specific_event:
+    #         try:
+    #             data_response = requests.post(
+    #                 "http://localhost:8000/network/data_prepare",
+    #                 json={
+    #                     "paramreq": {
+    #                         "eventname": st.session_state.specific_event,
+    #                         "test_size": st.session_state._test_size
+    #                     },
+    #                     "datareq": {
+    #                         "mi_melted_data": st.session_state.mi_melted_dict,
+    #                         "sf_exp_df": st.session_state.exp_dict,
+    #                         "sf_events_df": st.session_state.event_dict
+    #                     }
+    #                 }
+    #             )
+    #             if data_response.status_code == 201:
+    #                 st.success("Data prepared successfully.")
+    #                 st.session_state.data_dict = data_response.json()
+    #             else:
+    #                 st.error(f"Error in preparing data: {data_response.text}")
+    #         except Exception as e:
+    #             st.error(f"Error in preparing data: {e}")
+    #     else:
+    #         st.error("Please select both a gene and a specific event before preparing data.")
 
     st.divider()
 
-    st.subheader("Hyperparameter Optimization")
+    
+    with st.form(key='hyperparameter_form'):
+        st.text("Select ranges for hyperparameters")
 
-    if "data_dict" in st.session_state:
-        with st.form(key='hyperparameter_form'):
-            st.text("Select ranges for hyperparameters")
+        n_estimators_min = st.number_input("n_estimators - Min", min_value=1, max_value=1000, value=50)
+        n_estimators_max = st.number_input("n_estimators - Max", min_value=1, max_value=1000, value=200)
+        max_depth_min = st.number_input("max_depth - Min", min_value=1, max_value=50, value=3)
+        max_depth_max = st.number_input("max_depth - Max", min_value=1, max_value=50, value=9)
+        learning_rate_min = st.number_input("learning_rate - Min", min_value=0.001, max_value=1.0, step=0.001, value=0.01)
+        learning_rate_max = st.number_input("learning_rate - Max", min_value=0.001, max_value=1.0, step=0.001, value=0.3)
+        min_child_weight_min = st.number_input("min_child_weight - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+        min_child_weight_max = st.number_input("min_child_weight - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+        gamma_min = st.number_input("gamma - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+        gamma_max = st.number_input("gamma - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+        subsample_min = st.number_input("subsample - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
+        subsample_max = st.number_input("subsample - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
+        colsample_bytree_min = st.number_input("colsample_bytree - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
+        colsample_bytree_max = st.number_input("colsample_bytree - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
+        reg_alpha_min = st.number_input("reg_alpha - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+        reg_alpha_max = st.number_input("reg_alpha - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+        reg_lambda_min = st.number_input("reg_lambda - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+        reg_lambda_max = st.number_input("reg_lambda - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
 
-            n_estimators_min = st.number_input("n_estimators - Min", min_value=1, max_value=1000, value=50)
-            n_estimators_max = st.number_input("n_estimators - Max", min_value=1, max_value=1000, value=200)
-            max_depth_min = st.number_input("max_depth - Min", min_value=1, max_value=50, value=3)
-            max_depth_max = st.number_input("max_depth - Max", min_value=1, max_value=50, value=9)
-            learning_rate_min = st.number_input("learning_rate - Min", min_value=0.001, max_value=1.0, step=0.001, value=0.01)
-            learning_rate_max = st.number_input("learning_rate - Max", min_value=0.001, max_value=1.0, step=0.001, value=0.3)
-            min_child_weight_min = st.number_input("min_child_weight - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-            min_child_weight_max = st.number_input("min_child_weight - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-            gamma_min = st.number_input("gamma - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-            gamma_max = st.number_input("gamma - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-            subsample_min = st.number_input("subsample - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
-            subsample_max = st.number_input("subsample - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
-            colsample_bytree_min = st.number_input("colsample_bytree - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
-            colsample_bytree_max = st.number_input("colsample_bytree - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
-            reg_alpha_min = st.number_input("reg_alpha - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-            reg_alpha_max = st.number_input("reg_alpha - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-            reg_lambda_min = st.number_input("reg_lambda - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-            reg_lambda_max = st.number_input("reg_lambda - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+        submit_button = st.form_submit_button("Optimize Hyperparameters")
 
-            submit_button = st.form_submit_button("Optimize Hyperparameters")
+        if submit_button:
+            hyperparameters = {
+                "n_estimators": (n_estimators_min, n_estimators_max),
+                "max_depth": (max_depth_min, max_depth_max),
+                "learning_rate": (learning_rate_min, learning_rate_max),
+                "min_child_weight": (min_child_weight_min, min_child_weight_max),
+                "gamma": (gamma_min, gamma_max),
+                "subsample": (subsample_min, subsample_max),
+                "colsample_bytree": (colsample_bytree_min, colsample_bytree_max),
+                "reg_alpha": (reg_alpha_min, reg_alpha_max),
+                "reg_lambda": (reg_lambda_min, reg_lambda_max)
+            }
 
-            if submit_button:
-                hyperparameters = {
-                    "n_estimators": (n_estimators_min, n_estimators_max),
-                    "max_depth": (max_depth_min, max_depth_max),
-                    "learning_rate": (learning_rate_min, learning_rate_max),
-                    "min_child_weight": (min_child_weight_min, min_child_weight_max),
-                    "gamma": (gamma_min, gamma_max),
-                    "subsample": (subsample_min, subsample_max),
-                    "colsample_bytree": (colsample_bytree_min, colsample_bytree_max),
-                    "reg_alpha": (reg_alpha_min, reg_alpha_max),
-                    "reg_lambda": (reg_lambda_min, reg_lambda_max)
-                }
-
-                with st.spinner("Optimizing hyperparameters..."):
-                    try:
-                        hptuning_response = requests.post(
-                            "http://localhost:8000/network/hptuning",
-                            json={
-                                "paramreq": {
-                            "eventname": st.session_state.specific_event,
-                            "test_size": st.session_state._test_size
-                        },
-                        "datareq": {
-                            "mi_melted_data": st.session_state.mi_melted_dict,
-                            "sf_exp_df": st.session_state.exp_dict,
-                            "sf_events_df": st.session_state.event_dict
-                        },
-                        "hparams": hyperparameters
-                            }
-                        )
-                        if hptuning_response.status_code == 201:
-                            st.success("Hyperparameter optimization completed successfully.")
-                            optimized_params = hptuning_response.json()
-                            st.write("Best Parameters:", optimized_params["best_params"])
-                            st.write("Best Value:", optimized_params["best_value"])
-                        else:
-                            st.error(f"Error in hyperparameter optimization: {hptuning_response.text}")
-                    except Exception as e:
-                        st.error(f"Error in hyperparameter optimization: {e}")
-    else:
-        st.warning("Prepare the data first before optimizing hyperparameters.")
+            with st.spinner("Optimizing hyperparameters..."):
+                try:
+                    hptuning_response = requests.post(
+                        "http://localhost:8000/network/hptuning",
+                        json={
+                            "paramreq": {
+                        "eventname": st.session_state.specific_event,
+                        "test_size": st.session_state._test_size
+                    },
+                    "datareq": {
+                        "mi_melted_data": st.session_state.mi_melted_dict,
+                        "sf_exp_df": st.session_state.exp_dict,
+                        "sf_events_df": st.session_state.event_dict
+                    },
+                    "hparams": hyperparameters
+                        }
+                    )
+                    if hptuning_response.status_code == 201:
+                        st.success("Hyperparameter optimization completed successfully.")
+                        optimized_params = hptuning_response.json()
+                        st.write("Best Parameters:", optimized_params["best_params"])
+                        st.write("Best Value:", optimized_params["best_value"])
+                    else:
+                        st.error(f"Error in hyperparameter optimization: {hptuning_response.text}")
+                except Exception as e:
+                    st.error(f"Error in hyperparameter optimization: {e}")

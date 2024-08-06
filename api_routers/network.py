@@ -101,6 +101,8 @@ async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyp
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
+    
+    #Data preparation
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, event=eventname, test_size=test_size, 
@@ -121,7 +123,6 @@ async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyp
         )
         return {"best_params": best_params, "best_value": best_value}
     except Exception as e:
-        logging.error(f"Error in hyperparameter optimization: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during Hyperparameter tuning: {e}")
 
 
