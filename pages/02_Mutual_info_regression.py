@@ -19,26 +19,23 @@ else:
     mi_btn = st.button("Compute MI", type="primary")
 
     if mi_btn:
-        try:
-            response = requests.post("http://localhost:8000/mi/compute_mi", json={"sf_exp_df": exp_df, "sf_events_df": event_df})
-            response.raise_for_status()
-            data = response.json()
+        with st.spinner("Computing MI..."):
+            try:
+                response = requests.post("http://localhost:8000/mi/compute_mi", json={"sf_exp_df": exp_df, "sf_events_df": event_df})
+                response.raise_for_status()
+                data = response.json()
 
-            mi_dict = data["raw_mi_data"]
-            mi_df = pd.DataFrame(mi_dict["data"], columns=mi_dict["columns"], index=mi_dict["index"])
+                mi_dict = data["raw_mi_data"]
+                mi_df = pd.DataFrame(mi_dict["data"], columns=mi_dict["columns"], index=mi_dict["index"])
 
-            # Write mi_df to session_state
-            st.session_state._temp_mi_dict = mi_dict
+                # Write mi_df to session_state
+                st.session_state._temp_mi_dict = mi_dict
 
-            st.write("Computed MI Data:")
-            st.write(mi_df)
-            
-            # Debug print
-            st.write("Computed and stored MI data in session_state._temp_mi_dict:")
-            st.write(st.session_state._temp_mi_dict)
-            
-        except requests.RequestException as e:
-            st.error(f"Error fetching MI data: {e}")
+                st.write("Computed MI Data:")
+                st.write(mi_df)
+                
+            except requests.RequestException as e:
+                st.error(f"Error fetching MI data: {e}")
 
 st.divider()
 # Subdirectory Input
@@ -98,32 +95,32 @@ melt_check = st.checkbox("Melt DataFrame after loading")
 
 # Load Button for MI Data
 load_btn = st.button("Load MI Data", type="primary")
-
-if load_btn:
-    if MI_file and MI_file != "No files available":
-        mi_dict = load_mi_data(MI_file)
-        st.session_state._temp_mi_dict = mi_dict
-        
-        
-        mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
-        if not mi_df.empty:
-            st.write("Raw MI Data:")
-            st.write(mi_df)
-            if '_temp_mi_dict' in st.session_state and melt_check:
-                mi_melted_dict = melt_raw_mi(st.session_state._temp_mi_dict)
-                st.session_state._temp_mi_melted_dict = mi_melted_dict
-                
-                
-                
-                if mi_melted_dict:
-                    st.success("Melted MI data has been saved.")
+with st.spinner("Loading MI data..."):
+    if load_btn:
+        if MI_file and MI_file != "No files available":
+            mi_dict = load_mi_data(MI_file)
+            st.session_state._temp_mi_dict = mi_dict
+            
+            
+            mi_df = pd.DataFrame(mi_dict['data'], columns=mi_dict['columns'], index=mi_dict['index'])
+            if not mi_df.empty:
+                st.write("Raw MI Data:")
+                st.write(mi_df)
+                if '_temp_mi_dict' in st.session_state and melt_check:
+                    mi_melted_dict = melt_raw_mi(st.session_state._temp_mi_dict)
+                    st.session_state._temp_mi_melted_dict = mi_melted_dict
                     
+                    
+                    
+                    if mi_melted_dict:
+                        st.success("Melted MI data has been saved.")
+                        
+                else:
+                    st.warning("No MI dataframe to melt or melting not requested.")
             else:
-                st.warning("No MI dataframe to melt or melting not requested.")
+                st.warning("Loaded MI data is empty.")
         else:
-            st.warning("Loaded MI data is empty.")
-    else:
-        st.warning("Select a valid MI file to display.")
+            st.warning("Select a valid MI file to display.")
 
 # Ensure session_state variables are updated
 st.session_state.mi_dict = st.session_state.get('_temp_mi_dict', {})

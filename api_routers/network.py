@@ -148,23 +148,25 @@ async def xgboostnetfit(
     mi_melted_dict = datareq.mi_melted_data
     sf_exp_dict = datareq.sf_exp_df
     sf_event_dict = datareq.sf_events_df
+
     
+
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
-    
+
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, event=eventname, test_size=test_size, 
             mi_melted_df=mi_melted_df, sf_exp_upd=sf_exp_df, sf_events_upd=sf_event_df
         )
+        
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except IndexError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-       raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during Data preparation: {e}")
-    
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during data preparation: {e}")
     
     data_dict = {
         "train_X": train_X,
@@ -172,17 +174,15 @@ async def xgboostnetfit(
         "test_X": test_X,
         "test_y": test_y
     }
-    
+
     try:
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(
-            xgboostnet, data_dict, best_params, dataparams=paramreq.model_dump()
+            xgboostnet, data_dict=data_dict, best_fit=best_params, Dataparam=paramreq.model_dump()
         )
 
-        
         model_serialized = pickle.dumps(final_model)
         train_data_serialized = pickle.dumps(train_data)
 
-        
         db['xgboost_params'].insert_one({
             "spliced_gene": specific_gene,
             "specific_event": eventname,
@@ -191,8 +191,7 @@ async def xgboostnetfit(
             "xgboost_final_model": model_serialized,
             "xgboost_train_data": train_data_serialized
         })
-
-        return {"message": f"For event: {eventname} - Model has been fitted with rmse: {final_rmse} and all data uploaded to Database."}
+        return {"message": f"For event: {eventname} - Model has been fitted with RMse: {final_rmse} and all data uploaded to Database."}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during network fitting: {e}")
 

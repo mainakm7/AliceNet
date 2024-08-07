@@ -9,7 +9,7 @@ import os
 from fastapi import HTTPException, status
 
 
-def xgboostnet(data_dict: Dict[str, pd.DataFrame], best_fit: Dict[str, Any], Dataparam: Dict[str, Any]) -> Tuple[Dict[str, Any], float, custom_model, pd.DataFrame]:
+def xgboostnet(data_dict: Dict[str, pd.DataFrame], best_fit: Dict[str, Any], Dataparam: Dict[str, Any], *args, **kwargs) -> Tuple[Dict[str, Any], float, custom_model, pd.DataFrame]:
     """
     Train an XGBoost model with PCA preprocessing and hyperparameter optimization using Optuna.
 

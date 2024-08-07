@@ -18,6 +18,10 @@ else:
         st.session_state._temp_specific_event = None
     if '_test_size' not in st.session_state:
         st.session_state._test_size = 0.3
+    if '_temp_best_params' not in st.session_state:
+        st.session_state._temp_best_params = None
+    if 'best_params' not in st.session_state:
+        st.session_state.best_params = None
 
     exp_dict = st.session_state.exp_dict
     event_dict = st.session_state.event_dict
@@ -153,6 +157,7 @@ else:
                     if hptuning_response.status_code == 201:
                         st.success("Hyperparameter optimization completed successfully.")
                         optimized_params = hptuning_response.json()
+                        st.session_state._temp_best_params = optimized_params["best_params"]
                         st.write("Best Parameters:", optimized_params["best_params"])
                         st.write("Best Value:", optimized_params["best_value"])
                     else:
@@ -160,27 +165,33 @@ else:
                 except Exception as e:
                     st.error(f"Error in hyperparameter optimization: {e}")
 
+st.session_state.best_params = st.session_state._temp_best_params
 st.divider()
 st.subheader("Fit the Network with the optimum parameters and add to Database")
-if st.button("Model Fit", type="primary"):
-    try:
-        xgboostfit_response = requests.post(
-            "http://localhost:8000/network/xgboostnetfit",
-            json={
-                "paramreq": {
-                    "eventname": st.session_state.specific_event,
-                    "specific_gene": st.session_state.gene,
-                    "test_size": st.session_state._test_size
-                },
-                "datareq": {
-                    "mi_melted_data": st.session_state.mi_melted_dict,
-                    "sf_exp_df": st.session_state.exp_dict,
-                    "sf_events_df": st.session_state.event_dict
-                }
-            }
-        )
-        xgboostfit_response.raise_for_status()
-        xgbresponse = xgboostfit_response.json()
-        st.write(xgbresponse["message"])
-    except requests.RequestException as e:
-        st.error(f"Error while fitting xgboostnet: {e}")
+if st.session_state.best_params is None:
+    st.warning("First optimize the Hyperparameters before fitting model")
+else:
+    if st.button("Model Fit", type="primary"):
+        try:
+            with st.spinner("Fitting Model..."):
+                xgboostfit_response = requests.post(
+                    "http://localhost:8000/network/xgboostnetfit",
+                    json={
+                        "paramreq": {
+                            "eventname": st.session_state.specific_event,
+                            "specific_gene": st.session_state.gene,
+                            "test_size": st.session_state._test_size,
+                            "best_params": st.session_state.best_params
+                        },
+                        "datareq": {
+                            "mi_melted_data": st.session_state.mi_melted_dict,
+                            "sf_exp_df": st.session_state.exp_dict,
+                            "sf_events_df": st.session_state.event_dict
+                        }
+                    }
+                )
+                xgboostfit_response.raise_for_status()
+                xgbresponse = xgboostfit_response.json()
+                st.success(xgbresponse["message"])
+        except requests.RequestException as e:
+            st.error(f"Error while fitting xgboostnet: {e}")
