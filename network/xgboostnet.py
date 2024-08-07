@@ -25,7 +25,7 @@ def xgboostnet(data_dict: Dict[str, pd.DataFrame], best_fit: Dict[str, Any], Dat
     """
     try:
         train_X, train_y, test_X, test_y = data_dict["train_X"], data_dict["train_y"], data_dict["test_X"], data_dict["test_y"]
-        event = Dataparam.get("event")
+        event = Dataparam.get("eventname")
         
         # Initialize and train the final model with best hyperparameters
         final_model_custom = custom_model()

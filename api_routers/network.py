@@ -45,6 +45,7 @@ class AllParams(BaseModel):
     num_cluster: Optional[int] = 10
     specific_gene: Optional[str] = None
     eventname: Optional[str] = None
+    best_params: Optional[Dict[str, Any]] = None
 
 class DataFrameRequest(BaseModel):
     sf_exp_df: Optional[Dict] = None
@@ -136,32 +137,45 @@ async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyp
 
 @router.post("/xgboostnetfit", status_code=status.HTTP_201_CREATED)
 async def xgboostnetfit(
-    hparams: Hyperparameters, 
+    datareq: DataFrameRequest, 
     paramreq: AllParams, 
     db: Database = Depends(get_db)
 ):
-    
     specific_gene = paramreq.specific_gene
     eventname = paramreq.eventname
     test_size = paramreq.test_size
+    best_params = paramreq.best_params
+    mi_melted_dict = datareq.mi_melted_data
+    sf_exp_dict = datareq.sf_exp_df
+    sf_event_dict = datareq.sf_events_df
+    
+    mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
+    sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
+    sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
+    
     try:
-        
         train_X, train_y, test_X, test_y = await run_in_threadpool(
-            data_preparation, specific_gene=specific_gene, event=eventname, test_size=test_size
+            data_preparation, event=eventname, test_size=test_size, 
+            mi_melted_df=mi_melted_df, sf_exp_upd=sf_exp_df, sf_events_upd=sf_event_df
         )
-        alldata = {
-            "train_X": train_X,
-            "train_y": train_y,
-            "test_X": test_X,
-            "test_y": test_y        
-        }
-        best_params, best_value = await run_in_threadpool(
-            hyperparameter_tuning, **alldata, **hparams.model_dump()
-        )
-        
-        
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except IndexError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+       raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during Data preparation: {e}")
+    
+    
+    data_dict = {
+        "train_X": train_X,
+        "train_y": train_y,
+        "test_X": test_X,
+        "test_y": test_y
+    }
+    
+    try:
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(
-            xgboostnet, alldata, best_params, dataparams=paramreq.model_dump()
+            xgboostnet, data_dict, best_params, dataparams=paramreq.model_dump()
         )
 
         
@@ -178,11 +192,9 @@ async def xgboostnetfit(
             "xgboost_train_data": train_data_serialized
         })
 
-        return {"best_params": best_params, "final_rmse": final_rmse}
-    except HTTPException as e:
-        raise e
+        return {"message": f"For event: {eventname} - Model has been fitted and all data uploaded to Database.", "best_rmse": final_rmse}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during network fitting: {e}")
 
 @router.post("/xgboostnetquery", status_code=status.HTTP_201_CREATED)
 async def xgboostnetquery(
