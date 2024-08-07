@@ -8,6 +8,7 @@ from ..network.data_preparation import data_preparation
 from ..network.xgboostnet import xgboostnet
 from ..network.shap_PC_clustering import get_elbow, get_adj_matrix
 from ..clustering.feature_clustering import feature_clustering, spectral_elbow
+from ..utils.data_dir_path import data_dir_path
 from ..database import Database
 import pickle
 import pandas as pd
@@ -16,10 +17,27 @@ import logging
 import networkx as nx
 import matplotlib.pyplot as plt
 import io
+from bson import ObjectId
+import base64
+import os
+
+
 
 logging.basicConfig(level=logging.INFO, filename="network.log", filemode="w")
 
 router = APIRouter(prefix="/network", tags=["Network"])
+
+
+def serialize_object_id(data):
+    if isinstance(data, ObjectId):
+        return str(data)
+    elif isinstance(data, dict):
+        return {k: serialize_object_id(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [serialize_object_id(item) for item in data]
+    else:
+        return data
+
 
 def get_db() -> Database:
     return Database.get_db()
@@ -200,47 +218,78 @@ async def xgboostnetquery(
     paramreq: AllParams, 
     db: Database = Depends(get_db)
 ):
+    
     specific_gene = paramreq.specific_gene
     eventname = paramreq.eventname
+    
     try:
-        xgboost_fit = list(db['xgboost_params'].find({
+        xgboost_fit = db['xgboost_params'].find_one({
             "spliced_gene": specific_gene,
             "specific_event": eventname
-        }))
+        })
+
+        # Convert ObjectId to string
+        converted_data = pickle.dumps(xgboost_fit)
+        encoded_data = base64.b64encode(converted_data).decode("utf-8")
+
         if not xgboost_fit:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No data found for the given gene and event")
-        return xgboost_fit[0]
+        
+        
+        return {"data":encoded_data}
+    
+    except HTTPException as e:
+        raise e
+    
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
 
 
 @router.post("/hcluster_elbow", status_code=status.HTTP_201_CREATED)
-async def hcluster_elbow_dist(paramreq: AllParams):
+async def hcluster_elbow_dist(paramreq: AllParams, db: Database = Depends(get_db)):
     eventname = paramreq.eventname
     try:
-        xgboost_fit_data = await xgboostnetquery(paramreq)
+        logging.info(f"Received request for elbow plot with params: {paramreq}")
+        
+        # Call xgboostnetquery to get the XGBoost data
+        xgboost_fit_data_encoded = await xgboostnetquery(paramreq, db)
+        logging.info("Data retrieved from xgboostnetquery")
+
+        # Decode and load the XGBoost data
+        xgboost_fit_data = pickle.loads(base64.b64decode(xgboost_fit_data_encoded["data"]))
+        logging.info("XGBoost data successfully loaded")
+        
+
+        # Extract and deserialize the model and train data
         final_model_serialized = xgboost_fit_data["xgboost_final_model"]
         train_data_serialized = xgboost_fit_data["xgboost_train_data"]
 
-        final_model = pickle.loads(final_model_serialized)
-        train_data = pickle.loads(train_data_serialized)
+        logging.info("Model and training data deserialized")
 
-        distances = await run_in_threadpool(get_elbow, final_model_custom=final_model, train_X=train_data)
+        # Run the elbow method and plot the results
+        distances = await run_in_threadpool(get_elbow, final_model_serialized=final_model_serialized, train_data_serialized=train_data_serialized)
+        logging.info("Elbow method computation completed")
+        dir_path = data_dir_path(subdir="plots")
+        fig_path = os.path.join(dir_path,f"{eventname}_hcluster_elbow.jpeg")
         plt.figure(figsize=(8, 6))
         plt.plot(range(1, len(distances) + 1), distances, marker='o')
         plt.title(f"Event = {eventname}: Elbow Plot for Column Clustering")
         plt.xlabel('Number of clusters')
         plt.ylabel('Distance')
         plt.grid(True)
+        plt.savefig(fig_path)
         
+        # Save the plot to a BytesIO buffer and return it as a JPEG image
         buf = io.BytesIO()
         plt.savefig(buf, format='jpeg')
         buf.seek(0)
+        logging.info("Elbow plot successfully generated")
 
         return StreamingResponse(buf, media_type="image/jpeg")
         
     except Exception as e:
+        logging.error(f"Error encountered: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
 
 @router.post("/hcluster", status_code=status.HTTP_201_CREATED)
@@ -250,26 +299,33 @@ async def hcluster_adj_matrix(paramreq: AllParams, db: Database = Depends(get_db
     num_cluster = paramreq.num_cluster
 
     try:
-        xgboost_fit_data = await xgboostnetquery(paramreq)
+        logging.info(f"Received request for hcluster with params: {paramreq}")
+        xgboost_fit_data_encoded = await xgboostnetquery(paramreq, db)
+        logging.info("Data retrieved from xgboostnetquery")
+
+        # Decode and load the XGBoost data
+        xgboost_fit_data = pickle.loads(base64.b64decode(xgboost_fit_data_encoded["data"]))
+        logging.info("XGBoost data successfully loaded")
+        
+
+        # Extract and deserialize the model and train data
         final_model_serialized = xgboost_fit_data["xgboost_final_model"]
         train_data_serialized = xgboost_fit_data["xgboost_train_data"]
-
-        final_model = pickle.loads(final_model_serialized)
-        train_data = pickle.loads(train_data_serialized)
+        logging.info("Model and training data deserialized")
 
         adj_matrix_whole_df = await run_in_threadpool(
-            get_adj_matrix, model=final_model, num_clusters=num_cluster, train_X=train_data
+            get_adj_matrix, final_model_serialized=final_model_serialized, train_data_serialized=train_data_serialized, num_clusters=num_cluster
         )
-        
+        logging.info("hcluster computation completed")
         adj_matrix_whole_dict = adj_matrix_whole_df.to_dict(orient="split")
 
         # Query for the specific document
         query = {"spliced_gene": specific_gene, "specific_event": eventname}
-        doc = await db['xgboost_params'].find_one(query)
+        doc = db['xgboost_params'].find_one(query)
 
         if doc:
             # Update the document with the new adjacency matrix
-            update_result = await db['xgboost_params'].update_one(
+            update_result = db['xgboost_params'].update_one(
                 query, {"$set": {"adj_matrix_whole_dict": adj_matrix_whole_dict}}
             )
 
@@ -280,7 +336,7 @@ async def hcluster_adj_matrix(paramreq: AllParams, db: Database = Depends(get_db
                 )
         else:
             # Insert a new document if it doesn't exist
-            insert_result = await db['xgboost_params'].insert_one({
+            insert_result = db['xgboost_params'].insert_one({
                 "spliced_gene": specific_gene,
                 "specific_event": eventname,
                 "adj_matrix_whole_dict": adj_matrix_whole_dict
@@ -291,10 +347,11 @@ async def hcluster_adj_matrix(paramreq: AllParams, db: Database = Depends(get_db
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to insert the document with the adjacency matrix."
                 )
-
+        logging.info("hcluster update completed")
         return adj_matrix_whole_dict
         
     except Exception as e:
+        logging.error(f"Error encountered: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error encountered: {e}"
@@ -302,11 +359,15 @@ async def hcluster_adj_matrix(paramreq: AllParams, db: Database = Depends(get_db
 
 
 @router.post("/scluster_elbow", status_code=status.HTTP_201_CREATED)
-async def scluster_adj_matrix(paramreq: AllParams):
+async def scluster_adj_matrix(paramreq: AllParams, db:Database = Depends(get_db)):
     specific_gene = paramreq.specific_gene
     eventname = paramreq.eventname
     try:
-        xgboost_fit_data = await xgboostnetquery(paramreq)
+        xgboost_fit_data_encoded = await xgboostnetquery(paramreq, db)
+        logging.info("Data retrieved from xgboostnetquery")
+
+        # Decode and load the XGBoost data
+        xgboost_fit_data = pickle.loads(base64.b64decode(xgboost_fit_data_encoded["data"]))
         
         adj_matrix_whole_dict = xgboost_fit_data["adj_matrix_whole_dict"]
         
@@ -336,12 +397,16 @@ async def scluster_adj_matrix(paramreq: AllParams):
 
 
 @router.post("/scluster", status_code=status.HTTP_201_CREATED)
-async def scluster_adj_matrix(paramreq: AllParams):
+async def scluster_adj_matrix(paramreq: AllParams, db:Database = Depends(get_db)):
     specific_gene = paramreq.specific_gene
     eventname = paramreq.eventname
     num_cluster = paramreq.num_cluster
     try:
-        xgboost_fit_data = await xgboostnetquery(paramreq)
+        xgboost_fit_data_encoded = await xgboostnetquery(paramreq, db)
+        logging.info("Data retrieved from xgboostnetquery")
+
+        # Decode and load the XGBoost data
+        xgboost_fit_data = pickle.loads(base64.b64decode(xgboost_fit_data_encoded["data"]))
         
         adj_matrix_whole_dict = xgboost_fit_data["adj_matrix_whole_dict"]
         

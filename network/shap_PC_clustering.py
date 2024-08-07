@@ -4,8 +4,9 @@ from .custom_model import custom_model
 import shap
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 import matplotlib.pyplot as plt
+import pickle
 
-def get_elbow(final_model_custom: custom_model, train_X: pd.DataFrame) -> np.ndarray:
+def get_elbow(final_model_serialized: bytes, train_data_serialized: bytes) -> np.ndarray:
     """
     Calculate the distances for the elbow method using SHAP values and PCA components.
 
@@ -17,6 +18,9 @@ def get_elbow(final_model_custom: custom_model, train_X: pd.DataFrame) -> np.nda
         np.ndarray: Array of distances for the elbow method.
     """
     try:
+        
+        final_model_custom = pickle.loads(final_model_serialized)
+        train_X = pickle.loads(train_data_serialized)
         # Perform PCA transformation
         train_X_transformed = final_model_custom.pca_transform(train_X)
 
@@ -44,7 +48,7 @@ def get_elbow(final_model_custom: custom_model, train_X: pd.DataFrame) -> np.nda
     except Exception as e:
         raise RuntimeError(f"An error occurred while calculating the elbow method: {e}")
 
-def get_adj_matrix(final_model_custom: custom_model, train_X: pd.DataFrame, num_clusters: int = 10) -> pd.DataFrame:
+def get_adj_matrix(final_model_serialized: bytes, train_data_serialized: bytes, num_clusters: int = 10) -> pd.DataFrame:
     """
     Construct an adjacency matrix based on SHAP values and PCA components.
 
@@ -57,6 +61,9 @@ def get_adj_matrix(final_model_custom: custom_model, train_X: pd.DataFrame, num_
         pd.DataFrame: Adjacency matrix showing feature connections.
     """
     try:
+        
+        final_model_custom = pickle.loads(final_model_serialized)
+        train_X = pickle.loads(train_data_serialized)
         # Perform PCA transformation
         train_X_transformed = final_model_custom.pca_transform(train_X)
 
@@ -86,11 +93,6 @@ def get_adj_matrix(final_model_custom: custom_model, train_X: pd.DataFrame, num_
             # Perform hierarchical clustering
             Z = linkage(PC_sf_shap.T, method='ward')
             dendrogram(Z, labels=PC_sf_shap_df.columns.tolist())
-            plt.title(f'Dendrogram for PC {pci}')
-            plt.xlabel('Features')
-            plt.ylabel('Distance')
-            plt.show()  # Show dendrogram plot
-
             # Determine clusters
             max_cluster_threshold = num_clusters + 1 
             cluster_labels = fcluster(Z, max_cluster_threshold, criterion='maxclust')

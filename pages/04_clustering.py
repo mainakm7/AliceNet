@@ -70,10 +70,9 @@ else:
 
     try:
         response = requests.post("http://localhost:8000/network/xgboostnetquery", json={
-                            "paramreq": {
-                        "specific_gene": st.session_state.gene,
-                        "eventname": st.session_state.specific_event
-                    }})
+                                    "specific_gene": st.session_state.gene,
+                                    "eventname": st.session_state.specific_event
+                                })
         if response.status_code == 201:
             st.success("Best fit parameters are available in the Database")
         else:
@@ -89,39 +88,40 @@ else:
             of all splicing factors for selected event across all samples*")
 
     st.markdown("*Generate Hierarchical cluster elbow plot:*")
-    try:
-        response = requests.post("http://localhost:8000/network/hcluster_elbow", json={
-                                "paramreq": {
-                            "specific_gene": st.session_state.gene,
-                            "eventname": st.session_state.specific_event
-                        }})
-        response.raise_for_status()
-        image = Image.open(BytesIO(response.content))
-        st.image(image, caption=f'Hierarchical cluster Elbow plot for event: {st.session_state.specific_event}', use_column_width=True)
-    except Exception as e:
-        st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
+    if st.button("generate elbow", type="primary"):
+        with st.spinner("Generating elbow plot..."):
+            try:
+                response = requests.post("http://localhost:8000/network/hcluster_elbow", json={
+                                    "specific_gene": st.session_state.gene,
+                                    "eventname": st.session_state.specific_event
+                                })
+                response.raise_for_status()
+                image = Image.open(BytesIO(response.content))
+                st.image(image, caption=f'Hierarchical cluster Elbow plot for event: {st.session_state.specific_event}', use_column_width=True)
+            except Exception as e:
+                st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
 
     hnum_cluster = st.number_input("Please select a cluster size based on the elbow plot", min_value=1, max_value=262, step=1, value=10)
     st.session_state._temp_num_clusters_heirarchical = hnum_cluster
     st.session_state.num_clusters_heirarchical = st.session_state._temp_num_clusters_heirarchical
 
     st.markdown("*Generate adjacency matrix of splicing factors for the selected event*")
-
-    try:
-        response = requests.post("http://localhost:8000/network/hcluster", json={
-                                "paramreq": {
-                            "specific_gene": st.session_state.gene,
-                            "eventname": st.session_state.specific_event,
-                            "num_cluster": st.session_state.num_clusters_heirarchical
-                        }})
-        response.raise_for_status()
-        adj_mat_dict = response.json()
-        st.session_state._temp_adj_mat_dict = adj_mat_dict
-        adj_mat_df = pd.DataFrame(adj_mat_dict["data"], columns=adj_mat_dict["columns"], index=adj_mat_dict["index"])
-        st.text(f"Adjacency matrix for event: {st.session_state.specific_event}")
-        st.write(adj_mat_df)
-    except Exception as e:
-        st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
+    if st.button("generate hcluster", type="primary"):
+        with st.spinner("Generating Adjacency Matrix..."):
+            try:
+                response = requests.post("http://localhost:8000/network/hcluster", json={
+                                    "specific_gene": st.session_state.gene,
+                                    "eventname": st.session_state.specific_event,
+                                    "num_cluster": st.session_state.num_clusters_heirarchical
+                                })
+                response.raise_for_status()
+                adj_mat_dict = response.json()
+                st.session_state._temp_adj_mat_dict = adj_mat_dict
+                adj_mat_df = pd.DataFrame(adj_mat_dict["data"], columns=adj_mat_dict["columns"], index=adj_mat_dict["index"])
+                st.text(f"Adjacency matrix for event: {st.session_state.specific_event}")
+                st.write(adj_mat_df)
+            except Exception as e:
+                st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
 
     st.session_state.adj_mat_dict = st.session_state._temp_adj_mat_dict
 
