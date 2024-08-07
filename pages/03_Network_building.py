@@ -26,7 +26,7 @@ else:
     exp_dict = st.session_state.exp_dict
     event_dict = st.session_state.event_dict
 
-    st.header("XGBoost Network")
+    st.header("Network Building for each Splicing event!")
 
     st.subheader("Choose Gene and Specific Splicing Event")
 
