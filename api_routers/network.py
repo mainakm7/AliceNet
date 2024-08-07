@@ -1,17 +1,21 @@
 from fastapi import APIRouter, status, HTTPException, Path, Depends
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Tuple, List, Dict, Any, Union
 from ..network.hyperparameter_tuning import hyperparameter_tuning
 from ..network.data_preparation import data_preparation
 from ..network.xgboostnet import xgboostnet
 from ..network.shap_PC_clustering import get_elbow, get_adj_matrix
-from ..clustering.feature_clustering import feature_clustering
+from ..clustering.feature_clustering import feature_clustering, spectral_elbow
 from ..database import Database
 import pickle
 import pandas as pd
 import numpy as np
 import logging
+import network as nx
+import matplotlib.pyplot as plt
+import io
 
 logging.basicConfig(level=logging.INFO, filename="network.log", filemode="w")
 
@@ -21,7 +25,10 @@ def get_db() -> Database:
     return Database.get_db()
 
 
+class spectralinput(BaseModel):
+    adj_matrix_whole_dict: Dict
     
+
 class Hyperparameters(BaseModel):
     n_estimators: Optional[Tuple[int, int]] = (50, 200)
     max_depth: Optional[Tuple[int, int]] = (3, 9)
@@ -130,17 +137,17 @@ async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyp
 @router.post("/xgboostnetfit", status_code=status.HTTP_201_CREATED)
 async def xgboostnetfit(
     hparams: Hyperparameters, 
-    request: AllParams, 
+    paramreq: AllParams, 
     db: Database = Depends(get_db)
 ):
     
-    specific_gene = request.specific_gene
-    event = request.event
-    test_size = request.test_size
+    specific_gene = paramreq.specific_gene
+    eventname = paramreq.eventname
+    test_size = paramreq.test_size
     try:
         
         train_X, train_y, test_X, test_y = await run_in_threadpool(
-            data_preparation, specific_gene=specific_gene, event=event, test_size=test_size
+            data_preparation, specific_gene=specific_gene, event=eventname, test_size=test_size
         )
         alldata = {
             "train_X": train_X,
@@ -154,7 +161,7 @@ async def xgboostnetfit(
         
         
         best_params, final_rmse, final_model, train_data = await run_in_threadpool(
-            xgboostnet, alldata, best_params, dataparams=request.model_dump()
+            xgboostnet, alldata, best_params, dataparams=paramreq.model_dump()
         )
 
         
@@ -164,7 +171,7 @@ async def xgboostnetfit(
         
         db['xgboost_params'].insert_one({
             "spliced_gene": specific_gene,
-            "specific_event": event,
+            "specific_event": eventname,
             "xgboost_params": best_params,
             "xgboost_fit_rmse": final_rmse,
             "xgboost_final_model": model_serialized,
@@ -179,15 +186,15 @@ async def xgboostnetfit(
 
 @router.post("/xgboostnetquery", status_code=status.HTTP_201_CREATED)
 async def xgboostnetquery(
-    request: AllParams, 
+    paramreq: AllParams, 
     db: Database = Depends(get_db)
 ):
-    specific_gene = request.specific_gene
-    event = request.event
+    specific_gene = paramreq.specific_gene
+    eventname = paramreq.eventname
     try:
         xgboost_fit = list(db['xgboost_params'].find({
             "spliced_gene": specific_gene,
-            "specific_event": event
+            "specific_event": eventname
         }))
         if not xgboost_fit:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No data found for the given gene and event")
@@ -195,12 +202,13 @@ async def xgboostnetquery(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred: {e}")
 
+
+
 @router.post("/hcluster_elbow", status_code=status.HTTP_201_CREATED)
-async def hcluster_elbow_dist(request: AllParams):
-    specific_gene = request.specific_gene
-    event = request.event
+async def hcluster_elbow_dist(paramreq: AllParams):
+    eventname = paramreq.eventname
     try:
-        xgboost_fit_data = await xgboostnetquery(request)
+        xgboost_fit_data = await xgboostnetquery(paramreq)
         final_model_serialized = xgboost_fit_data["xgboost_final_model"]
         train_data_serialized = xgboost_fit_data["xgboost_train_data"]
 
@@ -208,46 +216,156 @@ async def hcluster_elbow_dist(request: AllParams):
         train_data = pickle.loads(train_data_serialized)
 
         distances = await run_in_threadpool(get_elbow, final_model_custom=final_model, train_X=train_data)
-        return distances
+        plt.figure(figsize=(8, 6))
+        plt.plot(range(1, len(distances) + 1), distances, marker='o')
+        plt.title(f"Event = {eventname}: Elbow Plot for Column Clustering")
+        plt.xlabel('Number of clusters')
+        plt.ylabel('Distance')
+        plt.grid(True)
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='jpeg')
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/jpeg")
+        
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
 
 @router.post("/hcluster", status_code=status.HTTP_201_CREATED)
-async def hcluster_adj_matrix(request: AllParams):
-    specific_gene = request.specific_gene
-    event = request.event
-    num_cluster = request.num_cluster
+async def hcluster_adj_matrix(paramreq: AllParams, db: Database = Depends(get_db)):
+    specific_gene = paramreq.specific_gene
+    eventname = paramreq.eventname
+    num_cluster = paramreq.num_cluster
+
     try:
-        xgboost_fit_data = await xgboostnetquery(request)
+        xgboost_fit_data = await xgboostnetquery(paramreq)
         final_model_serialized = xgboost_fit_data["xgboost_final_model"]
         train_data_serialized = xgboost_fit_data["xgboost_train_data"]
 
         final_model = pickle.loads(final_model_serialized)
         train_data = pickle.loads(train_data_serialized)
 
-        cluster_index, cluster_feature = await run_in_threadpool(
+        adj_matrix_whole_df = await run_in_threadpool(
             get_adj_matrix, model=final_model, num_clusters=num_cluster, train_X=train_data
         )
-        return {"cluster_index": cluster_index, "cluster_features": cluster_feature}
+        
+        adj_matrix_whole_dict = adj_matrix_whole_df.to_dict(orient="split")
+
+        # Query for the specific document
+        query = {"spliced_gene": specific_gene, "specific_event": eventname}
+        doc = await db['xgboost_params'].find_one(query)
+
+        if doc:
+            # Update the document with the new adjacency matrix
+            update_result = await db['xgboost_params'].update_one(
+                query, {"$set": {"adj_matrix_whole_dict": adj_matrix_whole_dict}}
+            )
+
+            if update_result.modified_count == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update the document with the adjacency matrix."
+                )
+        else:
+            # Insert a new document if it doesn't exist
+            insert_result = await db['xgboost_params'].insert_one({
+                "spliced_gene": specific_gene,
+                "specific_event": eventname,
+                "adj_matrix_whole_dict": adj_matrix_whole_dict
+            })
+
+            if not insert_result.inserted_id:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to insert the document with the adjacency matrix."
+                )
+
+        return adj_matrix_whole_dict
+        
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error encountered: {e}"
+        )
+
+
+@router.post("/scluster_elbow", status_code=status.HTTP_201_CREATED)
+async def scluster_adj_matrix(paramreq: AllParams):
+    specific_gene = paramreq.specific_gene
+    eventname = paramreq.eventname
+    try:
+        xgboost_fit_data = await xgboostnetquery(paramreq)
+        
+        adj_matrix_whole_dict = xgboost_fit_data["adj_matrix_whole_dict"]
+        
+        sorted_eigenvalues = await run_in_threadpool(
+            spectral_elbow, adj_matrix_whole_dict
+        )
+        plt.figure(figsize=(8, 6))
+        plt.plot(range(1, len(sorted_eigenvalues) + 1), sorted_eigenvalues, marker='o')
+        plt.title('Eigenvalue elbow Plot for Spectral Clustering')
+        plt.xlabel('Index')
+        plt.ylabel('Eigenvalue')
+        plt.grid(True)
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='jpeg')
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/jpeg")
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail= f"Error in plotting elbow plot for Spctral clustering: {e}")
+        
+
+        
+
 
 @router.post("/scluster", status_code=status.HTTP_201_CREATED)
-async def scluster_adj_matrix(request: AllParams):
-    specific_gene = request.specific_gene
-    event = request.event
-    num_cluster = request.num_cluster
+async def scluster_adj_matrix(paramreq: AllParams):
+    specific_gene = paramreq.specific_gene
+    eventname = paramreq.eventname
+    num_cluster = paramreq.num_cluster
     try:
-        xgboost_fit_data = await xgboostnetquery(request)
-        final_model_serialized = xgboost_fit_data["xgboost_final_model"]
-        train_data_serialized = xgboost_fit_data["xgboost_train_data"]
-
-        final_model = pickle.loads(final_model_serialized)
-        train_data = pickle.loads(train_data_serialized)
-
-        cluster_index, cluster_feature = await run_in_threadpool(
-            feature_clustering, model=final_model, num_clusters=num_cluster, train_X=train_data
+        xgboost_fit_data = await xgboostnetquery(paramreq)
+        
+        adj_matrix_whole_dict = xgboost_fit_data["adj_matrix_whole_dict"]
+        
+        clustered_genes = await run_in_threadpool(
+            feature_clustering, adj_matrix_whole_dict, num_cluster
         )
-        return {"cluster_index": cluster_index, "cluster_features": cluster_feature}
+        
+        event_node = "Event"
+
+        G = nx.Graph()
+
+        G.add_node(event_node)
+
+        for cluster, cluster_genes in clustered_genes.items():
+            G.add_node(cluster)
+            G.add_edge(event_node, cluster)
+            for gene in cluster_genes:
+                G.add_node(gene)
+                G.add_edge(cluster, gene)
+
+        # Draw the graph
+        pos = nx.spring_layout(G)  # Positioning for the graph
+
+        plt.figure(figsize=(10, 6))
+        nx.draw(G, pos, with_labels=True, node_size=250, node_color="skyblue", font_size=4, font_weight="bold", edge_color="gray")
+        plt.title(f"Event = {eventname}")
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='jpeg')
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/jpeg")
+        
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error encountered: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error encountered during spectral clutering: {e}"
+            )
