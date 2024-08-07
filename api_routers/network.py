@@ -13,7 +13,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import logging
-import network as nx
+import networkx as nx
 import matplotlib.pyplot as plt
 import io
 
@@ -192,7 +192,7 @@ async def xgboostnetfit(
             "xgboost_train_data": train_data_serialized
         })
 
-        return {"message": f"For event: {eventname} - Model has been fitted and all data uploaded to Database.", "best_rmse": final_rmse}
+        return {"message": f"For event: {eventname} - Model has been fitted with rmse: {final_rmse} and all data uploaded to Database."}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during network fitting: {e}")
 

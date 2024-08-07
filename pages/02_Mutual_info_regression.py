@@ -84,7 +84,7 @@ def melt_raw_mi(mi_dict):
         mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
         if not mi_melted_df.empty:
             st.success("MI data melted successfully.")
-            requests.post("http://localhost:8000/mi/melted_mi_data_to_db", json={"mi_melted_data": mi_melted_df.to_dict(orient="split")})
+            requests.post("http://localhost:8000/mi/melted_mi_data_to_db", json={"mi_melted_data": mi_melted_dict})
         return mi_melted_dict
     except requests.RequestException as e:
         st.error(f"Error in melting MI raw DataFrame: {str(e)}")

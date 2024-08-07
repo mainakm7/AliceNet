@@ -82,7 +82,7 @@ async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db
         inserted_count = 0
         for index, row in mi_melted_df.iterrows():
             db['melted_mi_data'].insert_one({
-                "spliced_genes": row["spliced_genes"],
+                "Splicing factors": row["Splicing factors"],
                 "events": row["Splicing events"],
                 "mi": row["MI-value"]
             })

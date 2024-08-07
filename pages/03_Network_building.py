@@ -92,25 +92,31 @@ else:
     
     with st.form(key='hyperparameter_form'):
         st.text("Select ranges for hyperparameters")
-
-        n_estimators_min = st.number_input("n_estimators - Min", min_value=1, max_value=1000, value=50)
-        n_estimators_max = st.number_input("n_estimators - Max", min_value=1, max_value=1000, value=200)
-        max_depth_min = st.number_input("max_depth - Min", min_value=1, max_value=50, value=3)
-        max_depth_max = st.number_input("max_depth - Max", min_value=1, max_value=50, value=9)
-        learning_rate_min = st.number_input("learning_rate - Min", min_value=0.001, max_value=1.0, step=0.001, value=0.01)
-        learning_rate_max = st.number_input("learning_rate - Max", min_value=0.001, max_value=1.0, step=0.001, value=0.3)
-        min_child_weight_min = st.number_input("min_child_weight - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-        min_child_weight_max = st.number_input("min_child_weight - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-        gamma_min = st.number_input("gamma - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-        gamma_max = st.number_input("gamma - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-        subsample_min = st.number_input("subsample - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
-        subsample_max = st.number_input("subsample - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
-        colsample_bytree_min = st.number_input("colsample_bytree - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
-        colsample_bytree_max = st.number_input("colsample_bytree - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
-        reg_alpha_min = st.number_input("reg_alpha - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-        reg_alpha_max = st.number_input("reg_alpha - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
-        reg_lambda_min = st.number_input("reg_lambda - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-        reg_lambda_max = st.number_input("reg_lambda - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            n_estimators_min = st.number_input("n_estimators - Min", min_value=1, max_value=1000, value=50)
+            max_depth_min = st.number_input("max_depth - Min", min_value=1, max_value=50, value=3)
+            learning_rate_min = st.number_input("learning_rate - Min", min_value=0.001, max_value=1.0, step=0.001, value=0.01) 
+            min_child_weight_min = st.number_input("min_child_weight - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+            gamma_min = st.number_input("gamma - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+            subsample_min = st.number_input("subsample - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
+            colsample_bytree_min = st.number_input("colsample_bytree - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
+            reg_alpha_min = st.number_input("reg_alpha - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+            reg_lambda_min = st.number_input("reg_lambda - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
+            
+        
+        with col2:
+            n_estimators_max = st.number_input("n_estimators - Max", min_value=1, max_value=1000, value=200)
+            max_depth_max = st.number_input("max_depth - Max", min_value=1, max_value=50, value=9)
+            learning_rate_max = st.number_input("learning_rate - Max", min_value=0.001, max_value=1.0, step=0.001, value=0.3)
+            min_child_weight_max = st.number_input("min_child_weight - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+            gamma_max = st.number_input("gamma - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+            subsample_max = st.number_input("subsample - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
+            colsample_bytree_max = st.number_input("colsample_bytree - Max", min_value=0.1, max_value=1.0, step=0.01, value=1.0)
+            reg_alpha_max = st.number_input("reg_alpha - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+            reg_lambda_max = st.number_input("reg_lambda - Max", min_value=0.001, max_value=10.0, step=0.001, value=10.0)
+            
 
         submit_button = st.form_submit_button("Optimize Hyperparameters")
 
@@ -153,3 +159,28 @@ else:
                         st.error(f"Error in hyperparameter optimization: {hptuning_response.text}")
                 except Exception as e:
                     st.error(f"Error in hyperparameter optimization: {e}")
+
+st.divider()
+st.subheader("Fit the Network with the optimum parameters and add to Database")
+if st.button("Model Fit", type="primary"):
+    try:
+        xgboostfit_response = requests.post(
+            "http://localhost:8000/network/xgboostnetfit",
+            json={
+                "paramreq": {
+                    "eventname": st.session_state.specific_event,
+                    "specific_gene": st.session_state.gene,
+                    "test_size": st.session_state._test_size
+                },
+                "datareq": {
+                    "mi_melted_data": st.session_state.mi_melted_dict,
+                    "sf_exp_df": st.session_state.exp_dict,
+                    "sf_events_df": st.session_state.event_dict
+                }
+            }
+        )
+        xgboostfit_response.raise_for_status()
+        xgbresponse = xgboostfit_response.json()
+        st.write(xgbresponse["message"])
+    except requests.RequestException as e:
+        st.error(f"Error while fitting xgboostnet: {e}")
