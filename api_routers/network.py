@@ -99,6 +99,7 @@ async def data_prepare(request: AllParams, datareq: DataFrameRequest):
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
+    
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, event=event, test_size=test_size, 
@@ -127,7 +128,7 @@ async def hp_tuning(paramreq: AllParams, datareq: DataFrameRequest, hparams: Hyp
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
-    
+    sf_event_df = sf_event_df.replace(-1,np.nan)
     #Data preparation
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
@@ -172,7 +173,7 @@ async def xgboostnetfit(
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
-
+    sf_event_df = sf_event_df.replace(-1,np.nan)
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, event=eventname, test_size=test_size, 
