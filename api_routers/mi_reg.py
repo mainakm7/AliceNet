@@ -32,6 +32,8 @@ async def compute_mi_all(request: DataFrameRequest):
         sf_exp_df = pd.DataFrame(request.sf_exp_df['data'], columns=request.sf_exp_df['columns'], index=request.sf_exp_df['index'])
         sf_events_df = pd.DataFrame(request.sf_events_df['data'], columns=request.sf_events_df['columns'], index=request.sf_events_df['index'])
         
+        sf_events_df = sf_events_df.replace(-1,np.nan)
+        
         mi_df = await run_in_threadpool(mi_regression_all, sf_exp_df, sf_events_df)
         
         if mi_df is None:
@@ -96,50 +98,50 @@ async def mi_data_to_db(request: DataFrameRequest, db: Database = Depends(get_db
             detail=f"An error occurred: {e}"
         )
 
-@router.get("/event_gene_select", status_code=status.HTTP_200_OK)
-async def select_specific_splicedgene():
-    sf_events_df = sf_events_upd.copy()
-    sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
-    return list(np.unique(sf_events_df["gene"]))
+# @router.get("/event_gene_select", status_code=status.HTTP_200_OK)
+# async def select_specific_splicedgene():
+#     sf_events_df = sf_events_upd.copy()
+#     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
+#     return list(np.unique(sf_events_df["gene"]))
 
-@router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
-async def select_specific_splicedevent(gene: str = Path(..., description="Gene to filter")):
-    sf_events_df = sf_events_upd.copy()
-    sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
-    return list(sf_events_df[sf_events_df["gene"] == gene].index)
+# @router.get("/specific_event_select/{gene}", status_code=status.HTTP_200_OK)
+# async def select_specific_splicedevent(gene: str = Path(..., description="Gene to filter")):
+#     sf_events_df = sf_events_upd.copy()
+#     sf_events_df["gene"] = sf_events_df.index.to_series().apply(lambda x: x.split("_")[0])
+#     return list(sf_events_df[sf_events_df["gene"] == gene].index)
 
-@router.get("/{gene}", status_code=status.HTTP_200_OK)
-async def mi_gene_events_query(
-    gene: str = Path(..., description="Gene to query"),
-    event: Optional[str] = Query(None, description="Splicing event to filter"),
-    db: Database = Depends(get_db)
-):
-    # Fetch available genes and events
-    genes = await select_specific_splicedgene()
-    events = await select_specific_splicedevent(gene)
+# @router.get("/{gene}", status_code=status.HTTP_200_OK)
+# async def mi_gene_events_query(
+#     gene: str = Path(..., description="Gene to query"),
+#     event: Optional[str] = Query(None, description="Splicing event to filter"),
+#     db: Database = Depends(get_db)
+# ):
+#     # Fetch available genes and events
+#     genes = await select_specific_splicedgene()
+#     events = await select_specific_splicedevent(gene)
     
-    # Validate gene and event
-    if gene not in genes:
-        raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
+#     # Validate gene and event
+#     if gene not in genes:
+#         raise HTTPException(status_code=400, detail=f"Gene {gene} is not in the list of available genes.")
     
-    if event and event not in events:
-        raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
+#     if event and event not in events:
+#         raise HTTPException(status_code=400, detail=f"Event {event} is not in the list of available events for gene {gene}.")
     
-    try:
-        query = {"spliced_genes": gene}
-        if event:
-            query["events"] = event
+#     try:
+#         query = {"spliced_genes": gene}
+#         if event:
+#             query["events"] = event
         
-        mi_data = list(db['melted_mi_data'].find(query))
-        if not mi_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No data found for the given gene and event"
-            )
-        return mi_data
+#         mi_data = list(db['melted_mi_data'].find(query))
+#         if not mi_data:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail="No data found for the given gene and event"
+#             )
+#         return mi_data
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {e}"
-        )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"An error occurred: {e}"
+#         )
