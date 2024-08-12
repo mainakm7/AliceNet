@@ -1,5 +1,7 @@
 import streamlit as st
 import requests
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Check if session state variables exist
 if 'exp_dict' not in st.session_state or 'event_dict' not in st.session_state:
@@ -64,6 +66,7 @@ else:
     test_size = st.slider("Test Size", min_value=0.0, max_value=1.0, step=0.1, value=st.session_state._test_size)
     st.session_state._test_size = test_size
 
+    # Uncomment this block to enable data preparation and hyperparameter tuning
     # if st.button("Data Preparation and Hyperparameter tuning"):
     #     if st.session_state.specific_event:
     #         try:
@@ -93,7 +96,6 @@ else:
 
     st.divider()
 
-    
     with st.form(key='hyperparameter_form'):
         st.text("Select ranges for hyperparameters")
         col1, col2 = st.columns(2)
@@ -108,7 +110,6 @@ else:
             colsample_bytree_min = st.number_input("colsample_bytree - Min", min_value=0.1, max_value=1.0, step=0.01, value=0.5)
             reg_alpha_min = st.number_input("reg_alpha - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
             reg_lambda_min = st.number_input("reg_lambda - Min", min_value=0.001, max_value=10.0, step=0.001, value=0.001)
-            
         
         with col2:
             n_estimators_max = st.number_input("n_estimators - Max", min_value=1, max_value=1000, value=200)
@@ -155,26 +156,22 @@ else:
                         }
                     )
                     if hptuning_response.status_code == 201:
-                        st.success("Hyperparameter optimization completed successfully.")
-                        optimized_params = hptuning_response.json()
-                        st.session_state._temp_best_params = optimized_params["best_params"]
-                        st.write("Best Parameters:", optimized_params["best_params"])
-                        st.write("Best Value:", optimized_params["best_value"])
+                        st.session_state._temp_best_params = hptuning_response.json()
+                        st.session_state.best_params = st.session_state._temp_best_params
+                        st.success(f"Best parameters found: {st.session_state.best_params}")
                     else:
-                        st.error(f"Error in hyperparameter optimization: {hptuning_response.text}")
+                        st.error(f"Error in hyperparameter tuning: {hptuning_response.text}")
                 except Exception as e:
-                    st.error(f"Error in hyperparameter optimization: {e}")
+                    st.error(f"Error in hyperparameter tuning: {e}")
+    
+    st.divider()
 
-st.session_state.best_params = st.session_state._temp_best_params
-st.divider()
-st.subheader("Fit the Network with the optimum parameters and add to Database")
-if st.session_state.best_params is None:
-    st.warning("First optimize the Hyperparameters before fitting model")
-else:
-    if st.button("Model Fit", type="primary"):
-        try:
-            with st.spinner("Fitting Model..."):
-                xgboostfit_response = requests.post(
+    st.subheader("Network Building")
+
+    if st.button("Build Network"):
+        with st.spinner("Building the Network..."):
+            try:
+                model_response = requests.post(
                     "http://localhost:8000/network/xgboostnetfit",
                     json={
                         "paramreq": {
@@ -190,8 +187,27 @@ else:
                         }
                     }
                 )
-                xgboostfit_response.raise_for_status()
-                xgbresponse = xgboostfit_response.json()
-                st.success(xgbresponse["message"])
-        except requests.RequestException as e:
-            st.error(f"Error while fitting xgboostnet: {e}")
+                model_response.raise_for_status()
+
+                response = model_response.json()
+                pred_y = response["pred_values"]
+                original_y = response["original_values"]
+                rmse = response["rmse"]
+                
+                fig, ax = plt.subplots()
+                sns.scatterplot(x=range(len(original_y)), y=original_y, label='Original Values', color='green', marker='o', ax=ax)
+                sns.scatterplot(x=range(len(pred_y)), y=pred_y, label='Predicted Values', color='red', marker='x', ax=ax)
+
+                ax.set_title(f'Prediction vs Original (RMSE: {rmse:.2f})')
+                ax.set_xlabel('Samples')
+                ax.set_ylabel('Values')
+                ax.set_ylim(0, 1)
+                ax.legend()
+                st.pyplot(fig)
+                st.caption(f"Event: {st.session_state.specific_event}")
+                
+            except requests.exceptions.HTTPError as http_err:
+                st.error(f"HTTP error occurred: {http_err}")
+            except Exception as e:
+                st.error(f"Error while building the network and fitting xgboostnet: {e}")
+

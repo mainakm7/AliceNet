@@ -99,7 +99,7 @@ async def data_prepare(request: AllParams, datareq: DataFrameRequest):
     mi_melted_df = pd.DataFrame(mi_melted_dict["data"], columns=mi_melted_dict["columns"], index=mi_melted_dict["index"])
     sf_exp_df = pd.DataFrame(sf_exp_dict["data"], columns=sf_exp_dict["columns"], index=sf_exp_dict["index"])
     sf_event_df = pd.DataFrame(sf_event_dict["data"], columns=sf_event_dict["columns"], index=sf_event_dict["index"])
-    
+    sf_event_df = sf_event_df.replace(-1,np.nan)
     try:
         train_X, train_y, test_X, test_y = await run_in_threadpool(
             data_preparation, event=event, test_size=test_size, 
@@ -201,16 +201,23 @@ async def xgboostnetfit(
 
         model_serialized = pickle.dumps(final_model)
         train_data_serialized = pickle.dumps(train_data)
-
+        final_preds = final_model.predict(test_X)
+        
         db['xgboost_params'].insert_one({
             "spliced_gene": specific_gene,
             "specific_event": eventname,
             "xgboost_params": best_params,
-            "xgboost_fit_rmse": final_rmse,
+            "xgboost_fit_rmse": float(final_rmse),
             "xgboost_final_model": model_serialized,
             "xgboost_train_data": train_data_serialized
         })
-        return {"message": f"For event: {eventname} - Model has been fitted with RMse: {final_rmse} and all data uploaded to Database."}
+        
+ 
+        return {
+            "pred_values": [float(pred) for pred in final_preds],  # Convert predictions to floats
+            "original_values": [float(val) for val in test_y],  # Convert original values to floats
+            "rmse": float(final_rmse)  # Convert RMSE to float
+        }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred during network fitting: {e}")
 
@@ -279,7 +286,7 @@ async def hcluster_elbow_dist(paramreq: AllParams, db: Database = Depends(get_db
         plt.xlabel('Number of clusters')
         plt.ylabel('Distance')
         plt.grid(True)
-        plt.savefig(fig_path)
+        # plt.savefig(fig_path)
         
         # Save the plot to a BytesIO buffer and return it as a JPEG image
         buf = io.BytesIO()
