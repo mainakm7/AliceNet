@@ -13,26 +13,14 @@ else:
         st.session_state.gene = None
     if 'specific_event' not in st.session_state:
         st.session_state.specific_event = None
-    if '_temp_gene' not in st.session_state:
-        st.session_state._temp_gene = None
-    if '_temp_specific_event' not in st.session_state:
-        st.session_state._temp_specific_event = None
-    if '_temp_best_params' not in st.session_state:
-        st.session_state._temp_best_params = None
     if 'best_params' not in st.session_state:
         st.session_state.best_params = None
-    if '_temp_adj_mat_dict' not in st.session_state:
-        st.session_state.best_params = None
     if 'adj_mat_dict' not in st.session_state:
-        st.session_state.best_params = None
-    if '_temp_num_clusters_heirarchical' not in st.session_state:
-        st.session_state.best_params = None
+        st.session_state.adj_mat_dict = None
     if 'num_clusters_heirarchical' not in st.session_state:
-        st.session_state.best_params = None
-    if '_temp_num_clusters_spectral' not in st.session_state:
-        st.session_state.best_params = None
+        st.session_state.num_clusters_heirarchical = 10
     if 'num_clusters_spectral' not in st.session_state:
-        st.session_state.best_params = None
+        st.session_state.num_clusters_spectral = 10
 
     exp_dict = st.session_state.exp_dict
     event_dict = st.session_state.event_dict
@@ -46,27 +34,28 @@ else:
 
     if gene_response.status_code == 201:
         gene_list = gene_response.json()
-        gene = st.selectbox("Select specific gene for network", gene_list)
+        gene = st.selectbox("Select specific gene for network", gene_list, index=0)
 
-        if st.button("Select Gene"):
+        gene_btn =  st.button("Select Gene")
+        if gene_btn:  
             st.session_state._temp_gene = gene
+            st.session_state.gene = gene
+
     else:
         st.error(f"Error fetching gene list: {gene_response.text}")
 
     # Fetch specific events for the selected gene
-    if st.session_state._temp_gene:
-        event_response = requests.post(f"http://localhost:8000/network/specific_event_select/{st.session_state._temp_gene}", json={"sf_events_df": event_dict})
+    if st.session_state._temp_gene: 
+        event_response = requests.post(f"http://localhost:8000/network/specific_event_select/{st.session_state.gene}", json={"sf_events_df": event_dict})
         if event_response.status_code == 201:
             event_list = event_response.json()
-            specific_event = st.selectbox("Select specific event for the chosen gene", event_list)
+            specific_event = st.selectbox("Select specific event for the chosen gene", event_list, index=0)
 
             if st.button("Select Specific Event"):
-                st.session_state._temp_specific_event = specific_event
+                st.session_state.specific_event = specific_event  # Update session state on button click
+
         else:
             st.error(f"Error fetching specific events: {event_response.text}")
-
-    st.session_state.gene = st.session_state._temp_gene
-    st.session_state.specific_event = st.session_state._temp_specific_event
 
     try:
         response = requests.post("http://localhost:8000/network/xgboostnetquery", json={
@@ -101,9 +90,8 @@ else:
             except Exception as e:
                 st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
 
-    hnum_cluster = st.number_input("Please select a cluster size based on the elbow plot", min_value=1, max_value=262, step=1, value=10)
-    st.session_state._temp_num_clusters_heirarchical = hnum_cluster
-    st.session_state.num_clusters_heirarchical = st.session_state._temp_num_clusters_heirarchical
+    hnum_cluster = st.number_input("Please select a cluster size based on the elbow plot", min_value=1, max_value=262, step=1, value=st.session_state.num_clusters_heirarchical)
+    st.session_state.num_clusters_heirarchical = hnum_cluster  # Update cluster size in session state
 
     st.markdown("*Generate adjacency matrix of splicing factors for the selected event*")
     if st.button("generate hcluster", type="primary"):
@@ -116,16 +104,13 @@ else:
                                 })
                 response.raise_for_status()
                 adj_mat_dict = response.json()
-                st.session_state._temp_adj_mat_dict = adj_mat_dict
+                st.session_state.adj_mat_dict = adj_mat_dict  # Update session state
                 adj_mat_df = pd.DataFrame(adj_mat_dict["data"], columns=adj_mat_dict["columns"], index=adj_mat_dict["index"])
                 st.text(f"Adjacency matrix for event: {st.session_state.specific_event}")
                 st.write(adj_mat_df)
             except Exception as e:
                 st.error(f"Error occurred while obtaining Hierarchical elbow plot: {e}")
 
-    st.session_state.adj_mat_dict = st.session_state._temp_adj_mat_dict
-
-    
     st.divider()
     st.subheader("Spectral clustering of splicing factors:")
     if st.session_state.adj_mat_dict is None:
@@ -145,9 +130,8 @@ else:
         except Exception as e:
             st.error(f"Error occurred while obtaining Spectral elbow plot: {e}")
 
-        snum_cluster = st.number_input("Please select a cluster size based on the elbow plot", min_value=1, max_value=262, step=1, value=10)
-        st.session_state._temp_num_clusters_spectral = snum_cluster
-        st.session_state.num_clusters_spectral = st.session_state._temp_num_clusters_spectral
+        snum_cluster = st.number_input("Please select a cluster size based on the elbow plot", min_value=1, max_value=262, step=1, value=st.session_state.num_clusters_spectral)
+        st.session_state.num_clusters_spectral = snum_cluster  # Update cluster size in session state
 
         st.markdown(f"*Clustered Splicing factors for the selected event: {st.session_state.specific_event}*")
         try:

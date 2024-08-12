@@ -203,14 +203,21 @@ async def xgboostnetfit(
         train_data_serialized = pickle.dumps(train_data)
         final_preds = final_model.predict(test_X)
         
-        db['xgboost_params'].insert_one({
-            "spliced_gene": specific_gene,
-            "specific_event": eventname,
-            "xgboost_params": best_params,
-            "xgboost_fit_rmse": float(final_rmse),
-            "xgboost_final_model": model_serialized,
-            "xgboost_train_data": train_data_serialized
-        })
+        db['xgboost_params'].update_one(
+            {
+                "spliced_gene": specific_gene,
+                "specific_event": eventname
+            },
+            {
+                "$set": {
+                    "xgboost_params": best_params,
+                    "xgboost_fit_rmse": float(final_rmse),
+                    "xgboost_final_model": model_serialized,
+                    "xgboost_train_data": train_data_serialized
+                }
+            },
+            upsert=True
+        )
         
  
         return {

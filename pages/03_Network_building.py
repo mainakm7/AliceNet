@@ -27,7 +27,6 @@ else:
 
     exp_dict = st.session_state.exp_dict
     event_dict = st.session_state.event_dict
-
     st.header("Network Building for each Splicing event!")
 
     st.subheader("Choose Gene and Specific Splicing Event")
@@ -157,13 +156,13 @@ else:
                     )
                     if hptuning_response.status_code == 201:
                         st.session_state._temp_best_params = hptuning_response.json()
-                        st.session_state.best_params = st.session_state._temp_best_params
                         st.success(f"Best parameters found: {st.session_state.best_params}")
                     else:
                         st.error(f"Error in hyperparameter tuning: {hptuning_response.text}")
                 except Exception as e:
                     st.error(f"Error in hyperparameter tuning: {e}")
     
+    st.session_state.best_params = st.session_state._temp_best_params
     st.divider()
 
     st.subheader("Network Building")
