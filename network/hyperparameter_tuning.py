@@ -58,7 +58,7 @@ def hyperparameter_tuning(train_X: pd.DataFrame, train_y: pd.Series, test_X: pd.
 
     # Create and optimize the Optuna study
     study = optuna.create_study(direction="minimize")
-    study.optimize(objective_custom, n_trials=100)
+    study.optimize(objective_custom, n_trials=100, n_jobs=-1)
 
     # Return the best parameters and best value
     return study.best_params, study.best_value
